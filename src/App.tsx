@@ -53,6 +53,7 @@ export default function App() {
   const [selectedLevel, setSelectedLevel] = useState('Todos');
 
   const [cloudData, setCloudData] = useState<CloudData | null>(null);
+  const hiddenDuringGeneration = useRef(new Set<string>());
   const [words, setWords] = useState<WordItem[]>([]);
   const [previousWords, setPreviousWords] = useState<WordItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,14 +85,14 @@ export default function App() {
 
   // Warm just one likely selection after the cloud is usable, never all its cards.
   useEffect(() => {
-    if (selectedWord || !words.length) return;
+    if (isLoading || selectedWord || !words.length) return;
     const first = [...words].sort((a, b) => b.weight - a.weight)[0];
     if (!first.detailsPending) return;
     const timer = setTimeout(() => {
       requestWordDetails(first, currentTopic, getApiHeaders()).catch(() => {});
     }, 1200);
     return () => clearTimeout(timer);
-  }, [words, currentTopic, selectedWord?.id]);
+  }, [words, currentTopic, selectedWord?.id, isLoading]);
   const detailState = { loading: !!selectedWord?.detailsPending && !detailError, error: detailError, retry: () => setDetailRetry(value => value + 1) };
   const [isFullModalOpen, setIsFullModalOpen] = useState(false);
 
@@ -126,22 +127,36 @@ export default function App() {
   // Fetch or generate word cloud
   const fetchCloud = useCallback(async (query: string, level = 'Todos') => {
     const requestId = ++cloudRequestId.current;
+    hiddenDuringGeneration.current.clear();
     setIsLoading(true);
     setErrorMessage(null);
     setSelectedWord(null);
 
-    try {
-      const data = await requestCloud(query, level, getApiHeaders());
+    let receivedProgress = false;
+    const applyCloud = (data: CloudData | null) => {
       if (requestId !== cloudRequestId.current) return;
+      if (!data) {
+        if (receivedProgress) { setWords([]); setCloudData(null); setSelectedWord(null); }
+        return;
+      }
+      receivedProgress = true;
       setCloudData(data);
       setCurrentTopic(query);
-      const enrichedWords = data.words.map((w) => ({
-        ...w,
-        isFavorite: isWordSaved(w.id) || isWordSaved(w.lemma || w.word) || !!w.isFavorite,
+      setWords(previous => data.words.filter(w => !hiddenDuringGeneration.current.has(w.id)).map(w => {
+        const existing = previous.find(item => item.id === w.id);
+        return {
+          ...w,
+          ...existing,
+          isFavorite: isWordSaved(w.id) || isWordSaved(w.lemma || w.word) || !!w.isFavorite,
+        };
       }));
-      setWords(enrichedWords);
+    };
+    try {
+      const data = await requestCloud(query, level, getApiHeaders(), applyCloud);
+      applyCloud(data);
     } catch (err: any) {
       if (requestId !== cloudRequestId.current) return;
+      if (receivedProgress) { setWords([]); setCloudData(null); setSelectedWord(null); }
       console.error(err);
       setErrorMessage(err.message || 'No se pudo generar la nube. Intenta de nuevo.');
     } finally {
@@ -163,7 +178,8 @@ export default function App() {
 
   // Expand Cloud with more words
   const handleExpandCloud = async (type: 'more' | 'advanced' | 'verbs' | 'expressions') => {
-    if (isExpanding) return;
+    if (isExpanding || isLoading) return;
+    const requestId = cloudRequestId.current;
     setIsExpanding(true);
 
     try {
@@ -179,12 +195,14 @@ export default function App() {
       });
 
       const data = await res.json();
+      if (requestId !== cloudRequestId.current) return;
       if (data.success && Array.isArray(data.newWords)) {
         setWords((prev) => [...prev, ...data.newWords]);
       } else {
         throw new Error(data.error || 'No se pudieron añadir palabras');
       }
     } catch (err: any) {
+      if (requestId !== cloudRequestId.current) return;
       console.warn('Expand error, fallback complementario:', err);
       const fallbackAdditions: WordItem[] = [
         { id: `fb_${Date.now()}_1`, word: 'el aderezo', lemma: 'aderezo', article: 'el', category: 'sustantivo', level: 'A2', weight: 3, meaning: 'Salsa o condimento con que se sazona una ensalada o plato.', example: 'Preparamos un aderezo con aceite, vinagre y mostaza.' },
@@ -266,6 +284,7 @@ export default function App() {
   };
 
   const handleHideWord = (id: string) => {
+    if (isLoading) hiddenDuringGeneration.current.add(id);
     setWords((prev) => prev.filter((w) => w.id !== id));
     if (selectedWord?.id === id) setSelectedWord(null);
   };
@@ -281,6 +300,8 @@ export default function App() {
   // Clear Board (Pizarra limpia para la clase)
   const handleClearBoard = () => {
     if (words.length === 0) return;
+    ++cloudRequestId.current;
+    setIsLoading(false);
     setPreviousWords([...words]);
     setWords([]);
     setSelectedWord(null);
@@ -628,7 +649,7 @@ export default function App() {
                 <div className="flex flex-wrap gap-2 pt-3">
                 <button
                   onClick={() => handleExpandCloud('more')}
-                  disabled={isExpanding}
+                  disabled={isExpanding || isLoading}
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3 h-3 text-zinc-400" />
@@ -636,7 +657,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => handleExpandCloud('advanced')}
-                  disabled={isExpanding}
+                  disabled={isExpanding || isLoading}
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Layers className="w-3 h-3 text-zinc-400" />
@@ -644,7 +665,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => handleExpandCloud('verbs')}
-                  disabled={isExpanding}
+                  disabled={isExpanding || isLoading}
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Flame className="w-3 h-3 text-zinc-400" />
@@ -652,7 +673,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => handleExpandCloud('expressions')}
-                  disabled={isExpanding}
+                  disabled={isExpanding || isLoading}
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Zap className="w-3 h-3 text-zinc-400" />

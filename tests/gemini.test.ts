@@ -14,7 +14,7 @@ test('validates and generates with available Gemini models when the fixed model 
       const names = String(req.headers['x-goog-api-key']).includes('fast-fixture')
         ? ['gemini-2.5-flash', 'gemini-2.5-flash-lite'] : ['gemini-current-flash'];
       res.end(JSON.stringify({ models: names.map(name => ({ name: `models/${name}`, supportedGenerationMethods: ['generateContent'] })) }));
-    } else if (req.url?.includes(':generateContent')) {
+    } else if ((req.url?.includes(':generateContent') || req.url?.includes(':streamGenerateContent'))) {
       if (Number(req.headers['x-server-timeout']) < 10) {
         res.statusCode = 400;
         res.end(JSON.stringify({ error: { code: 400, message: 'Minimum allowed deadline is 10s.' } }));
@@ -32,7 +32,14 @@ test('validates and generates with available Gemini models when the fixed model 
       const data = payload.generationConfig.responseSchema.properties.words
         ? { title: 'Viajes', words: [{ id: 'g1', word: 'el viaje', lemma: 'viaje', article: 'el', category: 'sustantivo', level: 'A2', weight: 3 }] }
         : { meaning: 'Traslado a otro lugar.', example: 'Mi viaje empieza mañana.', synonyms: ['recorrido'], translationEn: 'trip', collocation: 'hacer un viaje', pronunciationHint: 'VIA-je' };
-      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(data) }] } }] }));
+      if (req.url?.includes(':streamGenerateContent')) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        const emit = (text: string) => res.write('data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }) + '\n\n');
+        emit('{"words":' + JSON.stringify(data.words));
+        await new Promise(resolve => setTimeout(resolve, 80));
+        emit(',"title":"Viajes","summary":"Exploración","suggestedTopics":[]}');
+        res.end();
+      } else res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(data) }] } }] }));
     } else {
       res.statusCode = 404;
       res.end(JSON.stringify({ error: { code: 404, status: 'NOT_FOUND', message: 'Requested model is not found for API version v1beta.' } }));
@@ -95,6 +102,32 @@ test('validates and generates with available Gemini models when the fixed model 
     assert.deepEqual(card.data.synonyms, ['recorrido']);
     assert.equal(calls.filter(call => call.includes('flash-lite:generateContent')).length, 1, 'Quota-limited model is skipped for the subsequent detail call');
     assert.equal(calls.filter(call => call.startsWith('GET ')).length, 3);
+    const streamed = await originalFetch(base + '/api/generate-cloud', {
+      method: 'POST', headers: { ...headers, Accept: 'application/x-ndjson' },
+      body: JSON.stringify({ prompt: 'exploración espacial' }),
+    });
+    assert.match(streamed.headers.get('content-type') || '', /ndjson/);
+    const reader = streamed.body!.getReader();
+    let output = '';
+    while (!output.includes('"type":"progress"')) {
+      const chunk = await reader.read();
+      assert.equal(chunk.done, false);
+      output += new TextDecoder().decode(chunk.value);
+    }
+    assert.ok(!output.includes('"type":"complete"'), 'A usable word arrives before Gemini completes the JSON');
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      output += new TextDecoder().decode(chunk.value);
+    }
+    const events = output.trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(events[0].type, 'reset');
+    const partial = events.find(event => event.type === 'progress');
+    const final = events.at(-1);
+    assert.equal(final.type, 'complete');
+    assert.equal(partial.data.words[0].id, final.data.words[0].id, 'Word identity survives final metadata');
+    assert.equal(final.data.words[0].detailsPending, true);
+
   } finally {
     globalThis.fetch = originalFetch;
     await Promise.all([api, google].map(server => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))));

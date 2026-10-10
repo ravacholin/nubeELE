@@ -1,7 +1,8 @@
+import { completeWords } from './src/server/partialCloud.js';
 import { runFastCascade } from './src/server/fastCascade.js';
 import 'dotenv/config';
 import express from 'express';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -149,6 +150,7 @@ async function generateContentWithCascade(
     responseSchema?: any;
     responseMimeType?: string;
     fastVocabulary?: boolean;
+    stream?: { start: () => void; update: (text: string) => void };
   },
   customClient?: GoogleGenAI | null
 ): Promise<{ text: string; modelUsed: string } | null> {
@@ -163,7 +165,8 @@ async function generateContentWithCascade(
   let lastError: any;
   const result = await runFastCascade(availableModels, async (model, signal, timeout) => {
     try {
-    const response = await activeClient.models.generateContent({
+    configPayload.stream?.start();
+    const params = {
       model,
       contents: configPayload.contents,
       config: {
@@ -176,8 +179,18 @@ async function generateContentWithCascade(
         ...(configPayload.fastVocabulary && /^gemini-2\.5-flash(?:-lite)?$/.test(model)
           ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
-    });
-    const text = response.text || '';
+    };
+    let text = '';
+    if (configPayload.stream) {
+      const chunks = await activeClient.models.generateContentStream(params);
+      for await (const chunk of chunks) {
+        if (signal.aborted) throw new Error('Gemini timeout');
+        text += chunk.text || '';
+        configPayload.stream.update(text);
+      }
+    } else {
+      text = (await activeClient.models.generateContent(params)).text || '';
+    }
     if ((configPayload.responseMimeType || 'application/json') === 'application/json') JSON.parse(text);
     return text;
     } catch (error) { lastError = error; throw error; }
@@ -521,6 +534,7 @@ function generationFailure(res: express.Response, error?: any, hasCustomKey = fa
   const message = status === 429 ? 'Google indica que se agotó la cuota disponible. Esperá un momento o revisá la cuota de tu API key.'
     : status === 401 || status === 403 ? 'Google no permite generar con esta API key. Revisá sus permisos y restricciones.'
     : 'Gemini no pudo responder ahora. Podés volver a intentar en unos segundos.';
+  if (res.headersSent) return res.end(JSON.stringify({ type: 'error', error: message }) + '\n');
   return res.status(503).json({ success: false, error: message, providerStatus: status,
     ...(hasCustomKey && error?.message ? { providerMessage: String(error.message).replace(/AIza[\w-]+/g, '[redacted]').slice(0, 1200) } : {}),
   });
@@ -576,6 +590,23 @@ app.post('/api/generate-cloud', async (req, res) => {
       return res.json({ success: true, data: sanitizedCurated, source: 'curated' });
     }
 
+    const streaming = !!client && req.headers.accept?.includes('application/x-ndjson');
+    const emit = (event: object) => {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+      }
+      if (!res.destroyed) res.write(JSON.stringify(event) + '\n');
+    };
+    let attemptId = randomUUID();
+    let publishedCount = 0;
+    const prepareWords = (list: any[]) => list.map((word: any, index: number) => ({
+      ...sanitizeWordObject(word, index), id: `${attemptId}_${index}`,
+      meaning: '', example: '', detailsPending: true, topicContext: cleanPrompt,
+    }));
+
     // Try Gemini with multi-model cascade waterfall
     if (client) {
       try {
@@ -590,6 +621,15 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
             contents: userMessage,
             systemInstruction,
             fastVocabulary: true,
+            ...(streaming ? { stream: {
+              start: () => { attemptId = randomUUID(); publishedCount = 0; emit({ type: 'reset' }); },
+              update: (text: string) => {
+                const list = completeWords(text);
+                if (list.length <= publishedCount) return;
+                publishedCount = list.length;
+                emit({ type: 'progress', data: { title: String(prompt), summary: '', suggestedTopics: [], challenge: '', words: prepareWords(list) } });
+              },
+            } } : {}),
             responseSchema: {
               type: Type.OBJECT,
               properties: {
@@ -615,6 +655,7 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
                   },
                 },
               },
+              propertyOrdering: ['words', 'title', 'summary', 'suggestedTopics'],
               required: ['title', 'summary', 'words', 'suggestedTopics'],
             },
           },
@@ -625,7 +666,11 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
           const parsed = JSON.parse(cascadeRes.text);
           if (!Array.isArray(parsed.words) || !parsed.words.length) throw new Error('Empty cloud');
           parsed.challenge = '';
-          parsed.words = parsed.words.map((word: any, index: number) => ({ ...sanitizeWordObject(word, index), meaning: '', example: '', detailsPending: true, topicContext: cleanPrompt }));
+          parsed.words = prepareWords(parsed.words);
+          if (streaming) {
+            emit({ type: 'complete', success: true, data: parsed, source: 'gemini', modelUsed: cascadeRes.modelUsed });
+            return res.end();
+          }
           return res.json({ success: true, data: parsed, source: 'gemini', modelUsed: cascadeRes.modelUsed });
         }
       } catch (geminiError: any) {
@@ -633,7 +678,7 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
       }
     }
 
-    if (client) return res.status(503).json({ success: false, error: 'Los modelos de Gemini disponibles no respondieron a tiempo. Volvé a intentar en unos segundos.' });
+    if (client) return generationFailure(res);
 
     // Resilient Fallback: Match curated or synthesize
     for (const [key, val] of Object.entries(CURATED_SETS)) {
@@ -660,6 +705,7 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
     });
   } catch (err: any) {
     console.error('Error in /api/generate-cloud:', err);
+    if (res.headersSent) return generationFailure(res, err);
     // Even on ultimate unexpected exception, return reliable fallback
     const emergency = {
       ...CURATED_SETS.verduras,

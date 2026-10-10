@@ -37,3 +37,48 @@ test('temporary errors and fallback clouds can be retried immediately', async ()
   await loader('Viajes', 'Todos', {});
   assert.equal(calls, 3);
 });
+
+test('streams UTF-8 words before completion, shares progress, and caches only the final cloud', async () => {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let calls = 0;
+  const loader = createCloudRequests(async () => {
+    calls++;
+    return new Response(new ReadableStream({ start(c) { controller = c; } }), { headers: { 'Content-Type': 'application/x-ndjson' } });
+  });
+  const snapshots: any[] = [];
+  let finished = false;
+  const first = loader('náutica', 'B1', {}, data => snapshots.push(data)).then(data => { finished = true; return data; });
+  const data = { title: 'Náutica', words: [{ id: '1', word: 'el timón' }] };
+  const bytes = new TextEncoder().encode(JSON.stringify({ type: 'progress', data }) + '\n');
+  // Split within the accented letter to exercise incremental UTF-8 decoding.
+  const split = bytes.indexOf(195) + 1;
+  controller.enqueue(bytes.slice(0, split));
+  controller.enqueue(bytes.slice(split));
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(finished, false);
+  assert.deepEqual(snapshots, [data]);
+  const joined: any[] = [];
+  const second = loader('náutica', 'B1', {}, data => joined.push(data));
+  assert.deepEqual(joined, [data]);
+  controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: 'complete', success: true, source: 'gemini', data }) + '\n'));
+  controller.close();
+  assert.deepEqual(await first, data);
+  assert.deepEqual(await second, data);
+  await loader('náutica', 'B1', {});
+  assert.equal(calls, 1);
+});
+
+test('truncated streams and terminal errors are never cached, reset clears partial progress', async () => {
+  let calls = 0;
+  const snapshots: any[] = [];
+  const loader = createCloudRequests(async () => {
+    calls++;
+    const events = [{ type: 'progress', data: { words: [{ word: 'fallida' }] } }, { type: 'reset' }];
+    if (calls === 2) events.push({ type: 'error', error: 'Temporal' } as any);
+    return new Response(events.map(e => JSON.stringify(e)).join('\n'), { headers: { 'Content-Type': 'application/x-ndjson' } });
+  });
+  await assert.rejects(loader('tema', 'A1', {}, data => snapshots.push(data)), /interrumpió/);
+  assert.equal(snapshots.at(-1), null);
+  await assert.rejects(loader('tema', 'A1', {}), /Temporal/);
+  assert.equal(calls, 2);
+});

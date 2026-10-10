@@ -13,7 +13,7 @@ test('compiled Vercel API loads and serves JSON in plain Node ESM', async () => 
   try {
     await writeFile(path.join(output, 'package.json'), '{"type":"module"}');
     await symlink(path.join(root, 'node_modules'), path.join(output, 'node_modules'), 'dir');
-    for (const source of ['api/[...path].ts', 'server.ts', 'src/server/fastCascade.ts', 'src/utils/regionalVariants.ts', 'src/utils/apiKeyStorage.ts']) {
+    for (const source of ['api/[...path].ts', 'server.ts', 'src/server/fastCascade.ts', 'src/server/partialCloud.ts', 'src/utils/regionalVariants.ts', 'src/utils/apiKeyStorage.ts']) {
       const compiled = await transform(await readFile(path.join(root, source), 'utf8'), {
         loader: 'ts', format: 'esm', target: 'node22',
       });
