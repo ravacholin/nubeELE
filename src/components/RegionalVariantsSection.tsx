@@ -75,17 +75,17 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#22242c] pb-2">
         <div className="flex items-center gap-1.5 text-zinc-300 font-mono font-bold uppercase tracking-wider text-[11px]">
-          <Globe className="w-3.5 h-3.5 text-blue-400" />
+          <Globe className="w-3.5 h-3.5 text-zinc-400" />
           <span>Países hispanohablantes y variantes</span>
         </div>
-        <span className="text-[10px] font-mono uppercase bg-blue-950/80 text-blue-300 border border-blue-800/80 px-1.5 py-0.5">
+        <span className="text-[10px] font-mono uppercase bg-zinc-950/80 text-zinc-300 border border-zinc-800/80 px-1.5 py-0.5">
           Sustantivo
         </span>
       </div>
 
       {loading && !regionalUsage ? (
         <div className="flex items-center gap-2 py-3 text-xs text-zinc-400 font-mono">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
           <span>Consultando mapa dialectal hispanohablante...</span>
         </div>
       ) : regionalUsage ? (
@@ -143,13 +143,13 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
                         className="flex items-center gap-1 px-1.5 py-0.5 bg-[#1f2230] hover:bg-zinc-700 text-zinc-200 text-[10px] font-mono border border-zinc-700 cursor-pointer transition-colors"
                         title={`Escuchar variante: ${v.variant}`}
                       >
-                        <Volume2 className="w-3 h-3 text-blue-400" />
+                        <Volume2 className="w-3 h-3 text-zinc-400" />
                         <span>Escuchar</span>
                       </button>
                     </div>
 
                     <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-bold text-emerald-400 font-mono uppercase tracking-wide">
+                      <span className="text-sm font-bold text-zinc-400 font-mono uppercase tracking-wide">
                         {v.variant}
                       </span>
                     </div>
@@ -177,7 +177,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
           {/* Linguistic explanation */}
           {regionalUsage.explanation && !compact && (
             <div className="text-[11px] text-zinc-400 font-sans leading-relaxed pt-1.5 border-t border-[#22242c] flex items-start gap-1.5">
-              <Sparkles className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+              <Sparkles className="w-3 h-3 text-zinc-400 shrink-0 mt-0.5" />
               <span>{regionalUsage.explanation}</span>
             </div>
           )}

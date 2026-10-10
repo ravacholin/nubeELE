@@ -289,7 +289,7 @@ export default function App() {
     <div className={`min-h-screen flex flex-col font-sans text-[#f4f4f5] transition-colors duration-300 ${activePalette.bgClass} selection:bg-white selection:text-black`}>
       {/* 1. TOP BAR - Minimalist Brutalist Dark */}
       <header className="sticky top-0 z-40 bg-[#090a0f]/95 backdrop-blur-md border-b border-[#27272a]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
           {/* Zone 1: Minimalist Brutalist Brand */}
           <div className="flex items-center gap-3">
             <a
@@ -321,41 +321,37 @@ export default function App() {
               onClick={() => setShowOnlySaved(!showOnlySaved)}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
                 showOnlySaved
-                  ? 'bg-emerald-400 text-black border-emerald-400 font-bold'
+                  ? 'bg-zinc-400 text-black border-zinc-400 font-bold'
                   : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
               }`}
               title="Filtrar palabras guardadas con el icono de +"
+              aria-label="Palabras guardadas"
             >
-              <BookmarkCheck className={`w-3.5 h-3.5 ${showOnlySaved ? 'text-black' : 'text-emerald-400'}`} />
+              <BookmarkCheck className={`w-3.5 h-3.5 ${showOnlySaved ? 'text-black' : 'text-zinc-400'}`} />
               <span className="hidden sm:inline">Guardadas</span>
               <span>({savedWordsList.length})</span>
             </button>
 
-            {/* Clave de API Gemini Gratis / Local */}
+            {/* Gemini API key */}
             <button
               onClick={() => setIsApiKeyModalOpen(true)}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
                 hasCustomApiKey
-                  ? 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-700/80'
+                  ? 'bg-zinc-950/40 hover:bg-zinc-900/60 text-zinc-300 border-zinc-700/80'
                   : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
               }`}
-              title="Instructivo y configuración de clave gratuita de Google Gemini (guardada localmente)"
+              title="Configurar API key de Gemini"
+              aria-label="API key"
             >
-              <KeyRound className={`w-3.5 h-3.5 ${hasCustomApiKey ? 'text-emerald-400' : 'text-zinc-400'}`} />
-              <span className="hidden sm:inline">
-                {hasCustomApiKey ? 'Clave API' : 'Clave Gratis'}
-              </span>
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  hasCustomApiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                }`}
-              />
+              <KeyRound className="hidden sm:block w-3.5 h-3.5 text-zinc-400" />
+              <span className="whitespace-nowrap">API key</span>
             </button>
 
             <button
               onClick={() => setIsExportModalOpen(true)}
               className="p-1.5 bg-[#181920] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-[#27272a] text-xs transition-colors cursor-pointer"
               title="Exportar vocabulario para alumnos"
+              aria-label="Exportar vocabulario"
             >
               <Share2 className="w-4 h-4" />
             </button>
@@ -364,10 +360,11 @@ export default function App() {
               onClick={() => setIsPresentationMode(!isPresentationMode)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
                 isPresentationMode
-                  ? 'bg-emerald-400 text-black border-emerald-400 font-bold'
+                  ? 'bg-zinc-400 text-black border-zinc-400 font-bold'
                   : 'bg-white text-black hover:bg-zinc-200 border-white font-semibold'
               }`}
               title="Modo pantalla completa para proyector o Zoom"
+              aria-label={isPresentationMode ? 'Salir de pizarra' : 'Modo pizarra'}
             >
               {isPresentationMode ? (
                 <>
@@ -389,53 +386,31 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Dynamic Topic Generator Bar - Minimalist Brutalist Hero */}
         {!isPresentationMode && (
-          <section className="bg-[#101218] border border-[#27272a] p-3.5 sm:p-6 space-y-3 sm:space-y-4">
+          <section className="p-1 sm:py-4 space-y-4 sm:space-y-5">
             <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-2 pb-1 border-b border-[#1f2128]">
               <div>
-                {/* Title strictly: "Generador de nubes de palabras" */}
                 <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white font-mono uppercase">
-                  Generador de nubes de palabras
+                  Nubes de palabras
                 </h1>
                 <p className="text-xs text-zinc-400 font-mono mt-1">
-                  Didáctica ELE · Nivel MCER · Fonética · Campos semánticos
+                  Español para explorar, escuchar y enseñar.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-                <span className="w-2 h-2 bg-emerald-400 inline-block animate-pulse" />
-                <span>Interactivo</span>
+                <span>ELE · A1—C1</span>
               </div>
             </div>
 
-            {/* Quick Template Chips (Horizontally swipeable on mobile, wrapping on desktop) */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 -mx-1 px-1 sm:flex-wrap">
-              {SUGGESTED_TEMPLATES.map((tmpl) => (
-                <button
-                  key={tmpl.query}
-                  onClick={() => {
-                    setTopicInput(tmpl.query);
-                    fetchCloud(tmpl.query, selectedLevel);
-                  }}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-mono uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
-                    currentTopic === tmpl.query
-                      ? 'bg-white text-black border-white font-bold'
-                      : 'bg-[#14161f] text-zinc-300 border-[#27272a] hover:border-zinc-500 hover:text-white'
-                  }`}
-                >
-                  <span>{tmpl.label}</span>
-                  <span className="text-[10px] text-zinc-400 font-sans opacity-70">[{tmpl.tag}]</span>
-                </button>
-              ))}
-            </div>
-
             {/* Search and level filter */}
-            <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 sm:pt-2">
-              <div className="relative flex-1">
+            <form onSubmit={handleSearchSubmit} className="grid grid-cols-2 sm:flex items-stretch sm:items-center gap-2 pt-1 sm:pt-2">
+              <div className="relative col-span-2 sm:flex-1">
                 <input
                   type="text"
                   value={topicInput}
                   onChange={(e) => setTopicInput(e.target.value)}
-                  placeholder="Escribe un tema (ej: verduras, emociones, ciudad...)"
+                  placeholder="¿Qué tema querés explorar?"
+                  aria-label="Tema de la nube"
                   className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-[#14161f] hover:bg-[#181a24] focus:bg-[#14161f] border border-[#27272a] text-sm text-white placeholder:text-zinc-400 focus:outline-hidden focus:border-white transition-all font-mono"
                 />
                 <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -444,6 +419,7 @@ export default function App() {
               {/* Level Filter */}
               <select
                 value={selectedLevel}
+                aria-label="Nivel MCER"
                 onChange={(e) => setSelectedLevel(e.target.value)}
                 className="px-3 py-2 sm:py-2.5 bg-[#14161f] border border-[#27272a] text-xs font-mono uppercase tracking-wider text-zinc-200 focus:outline-hidden focus:border-white cursor-pointer"
               >
@@ -475,32 +451,29 @@ export default function App() {
               </button>
             </form>
 
-            {/* Didactic API Key Hint Bar */}
-            <div className="pt-2.5 border-t border-[#1f2128] flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${hasCustomApiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                <span className="text-zinc-400 text-[11px] font-sans">
-                  {hasCustomApiKey ? (
-                    <>
-                      <strong className="text-emerald-300 font-mono">Cuota personal activa:</strong> Tu clave Gemini está guardada en este navegador.
-                    </>
-                  ) : (
-                    <>
-                      <strong className="text-zinc-300 font-mono">Modo servidor compartido:</strong> Puedes añadir tu clave gratuita de Google para cuota ilimitada sin esperas.
-                    </>
-                  )}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsApiKeyModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider text-emerald-300 hover:text-white bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800 transition-colors cursor-pointer"
-              >
-                <KeyRound className="w-3 h-3 text-emerald-400" />
-                <span>{hasCustomApiKey ? 'Gestionar o cambiar clave' : 'Instructivo: Clave gratis (1 min) →'}</span>
-              </button>
+            <details className="text-xs font-mono text-zinc-400">
+              <summary className="cursor-pointer hover:text-white py-1">Explorar temas</summary>
+            <div className="flex flex-wrap gap-2 pt-3">
+              {SUGGESTED_TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.query}
+                  onClick={() => {
+                    setTopicInput(tmpl.query);
+                    fetchCloud(tmpl.query, selectedLevel);
+                  }}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-mono uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
+                    currentTopic === tmpl.query
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-[#14161f] text-zinc-300 border-[#27272a] hover:border-zinc-500 hover:text-white'
+                  }`}
+                >
+                  <span>{tmpl.label}</span>
+                  <span className="text-[10px] text-zinc-400 font-sans opacity-70">[{tmpl.tag}]</span>
+                </button>
+              ))}
             </div>
+            </details>
+
           </section>
         )}
 
@@ -584,14 +557,14 @@ export default function App() {
 
           {/* Interactive Word Cloud Visual Canvas */}
           {showOnlySaved && (
-            <div className="px-4 py-2 bg-emerald-950/70 border-b border-emerald-700/80 flex items-center justify-between text-xs font-mono text-emerald-300">
+            <div className="px-4 py-2 bg-zinc-950/70 border-b border-zinc-700/80 flex items-center justify-between text-xs font-mono text-zinc-300">
               <div className="flex items-center gap-2">
-                <BookmarkCheck className="w-4 h-4 text-emerald-400" />
+                <BookmarkCheck className="w-4 h-4 text-zinc-400" />
                 <span>Mostrando palabras guardadas con el icono de + ({displayedWords.length})</span>
               </div>
               <button
                 onClick={() => setShowOnlySaved(false)}
-                className="text-emerald-400 hover:text-white underline cursor-pointer text-[11px] uppercase"
+                className="text-zinc-400 hover:text-white underline cursor-pointer text-[11px] uppercase"
               >
                 Ver toda la nube
               </button>
@@ -623,15 +596,16 @@ export default function App() {
           {/* Cloud Footer Actions: Expand vocabulary */}
           {!isPresentationMode && (
             <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-t border-[#22242c] bg-[#12131a] flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs font-mono">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-zinc-400 uppercase tracking-wider text-[11px]">Ampliar:</span>
+              <details className="min-w-0">
+                <summary className="cursor-pointer text-zinc-400 hover:text-white py-1">Ampliar nube</summary>
+                <div className="flex flex-wrap gap-2 pt-3">
                 <button
                   onClick={() => handleExpandCloud('more')}
                   disabled={isExpanding}
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3 h-3 text-zinc-400" />
-                  <span>+ Más palabras</span>
+                  <span>Más palabras</span>
                 </button>
                 <button
                   onClick={() => handleExpandCloud('advanced')}
@@ -639,7 +613,7 @@ export default function App() {
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Layers className="w-3 h-3 text-zinc-400" />
-                  <span>+ Avanzado (B2-C1)</span>
+                  <span>Avanzado (B2-C1)</span>
                 </button>
                 <button
                   onClick={() => handleExpandCloud('verbs')}
@@ -647,7 +621,7 @@ export default function App() {
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Flame className="w-3 h-3 text-zinc-400" />
-                  <span>+ Verbos</span>
+                  <span>Verbos</span>
                 </button>
                 <button
                   onClick={() => handleExpandCloud('expressions')}
@@ -655,15 +629,16 @@ export default function App() {
                   className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <Zap className="w-3 h-3 text-zinc-400" />
-                  <span>+ Expresiones</span>
+                  <span>Expresiones</span>
                 </button>
-              </div>
+                </div>
+              </details>
 
               {/* Related Topic tags */}
               {cloudData?.suggestedTopics && cloudData.suggestedTopics.length > 0 && (
-                <div className="flex items-center gap-1.5 text-zinc-400 text-[11px]">
-                  <span className="uppercase tracking-wider">Temas:</span>
-                  <div className="flex items-center gap-1.5">
+                <details className="min-w-0 text-zinc-400 text-[11px]">
+                  <summary className="cursor-pointer hover:text-white py-1">Temas relacionados</summary>
+                  <div className="flex flex-wrap items-center gap-2 pt-3">
                     {cloudData.suggestedTopics.slice(0, 4).map((topic, i) => (
                       <React.Fragment key={topic}>
                         <button
@@ -679,7 +654,7 @@ export default function App() {
                       </React.Fragment>
                     ))}
                   </div>
-                </div>
+                </details>
               )}
             </div>
           )}
@@ -693,18 +668,9 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-white uppercase tracking-wider">NubeELE</span>
             <span className="text-zinc-700">|</span>
-            <span>Generador de nubes de palabras didácticas</span>
+            <span>Español en palabras</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsApiKeyModalOpen(true)}
-              className="text-zinc-400 hover:text-white flex items-center gap-1.5 hover:underline cursor-pointer transition-colors"
-              title="Instructivo de clave gratuita y guardado local"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Clave API Gemini (Gratis & Local)</span>
-            </button>
-          </div>
+
         </div>
       </footer>
 
@@ -739,15 +705,15 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#0f1118] border-2 border-emerald-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#0f1118] border-2 border-zinc-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
         >
           {saveToast.isSaved ? (
-            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Check className="w-4 h-4 text-zinc-400 shrink-0" />
           ) : (
             <BookmarkCheck className="w-4 h-4 text-zinc-400 shrink-0" />
           )}
           <span>
-            {saveToast.text}: <strong className="text-emerald-300 uppercase">«{saveToast.word}»</strong>
+            {saveToast.text}: <strong className="text-zinc-300 uppercase">«{saveToast.word}»</strong>
           </span>
         </div>
       )}

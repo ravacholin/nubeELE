@@ -102,11 +102,11 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
   };
 
   const levelColorMap: Record<string, string> = {
-    A1: 'bg-emerald-950/80 text-emerald-400 border-emerald-800',
-    A2: 'bg-teal-950/80 text-teal-400 border-teal-800',
-    B1: 'bg-amber-950/80 text-amber-400 border-amber-800',
-    B2: 'bg-orange-950/80 text-orange-400 border-orange-800',
-    C1: 'bg-rose-950/80 text-rose-400 border-rose-800',
+    A1: 'bg-zinc-950/80 text-zinc-400 border-zinc-800',
+    A2: 'bg-zinc-950/80 text-zinc-400 border-zinc-800',
+    B1: 'bg-zinc-950/80 text-zinc-400 border-zinc-800',
+    B2: 'bg-zinc-950/80 text-zinc-400 border-zinc-800',
+    C1: 'bg-zinc-950/80 text-zinc-400 border-zinc-800',
   };
 
   return (
@@ -135,7 +135,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
         {/* Sticky Top Bar with Pagination, Controls, and High-Contrast Close Button */}
         <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-[#14161f] border-b border-[#272a36] text-xs font-mono text-zinc-300 shrink-0 select-none">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-emerald-400 inline-block animate-pulse rounded-full" />
+            <span className="w-2.5 h-2.5 bg-zinc-400 inline-block rounded-full" />
             <span className="font-bold text-white uppercase tracking-wider text-[11px]">
               Palabra
             </span>
@@ -172,7 +172,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             {/* High-visibility Close Button - always visible in sticky header */}
             <button
               onClick={onClose}
-              className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white border border-rose-400 font-mono text-xs font-bold transition-all cursor-pointer shadow-md ml-1"
+              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-600 hover:bg-zinc-500 active:bg-zinc-700 text-white border border-zinc-400 font-mono text-xs font-bold transition-all cursor-pointer shadow-md ml-1"
               title="Cerrar ficha (Esc)"
               aria-label="Cerrar panel de palabra"
             >
@@ -226,19 +226,19 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
                 onClick={() => onToggleFavorite(word.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer border ${
                   word.isFavorite
-                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500'
+                    ? 'bg-zinc-950/80 text-zinc-300 border-zinc-500'
                     : 'bg-[#181920] hover:bg-zinc-800 text-zinc-200 border-[#27272a] hover:border-zinc-500'
                 }`}
                 title={word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
               >
                 {word.isFavorite ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3.5 h-3.5 text-zinc-400" />
                     <span>Guardada</span>
                   </>
                 ) : (
                   <>
-                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                    <Plus className="w-3.5 h-3.5 text-zinc-400" />
                     <span>Guardar</span>
                   </>
                 )}
@@ -250,7 +250,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
               disabled={isPlayingWord}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
                 isPlayingWord
-                  ? 'bg-emerald-400 text-black animate-pulse'
+                  ? 'bg-zinc-400 text-black animate-pulse'
                   : 'bg-white hover:bg-zinc-200 text-black'
               }`}
               title="Escuchar pronunciación nativa"
@@ -304,7 +304,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
               disabled={isPlayingSentence}
               className={`p-1 text-xs transition-colors cursor-pointer ${
                 isPlayingSentence
-                  ? 'text-emerald-400 animate-pulse'
+                  ? 'text-zinc-400 animate-pulse'
                   : 'text-zinc-400 hover:text-white'
               }`}
               title="Escuchar frase completa"
@@ -313,7 +313,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             </button>
           </div>
 
-          <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-emerald-400 pl-2.5">
+          <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-zinc-400 pl-2.5">
             "{extraExample || word.example}"
           </p>
 

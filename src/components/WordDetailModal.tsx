@@ -43,11 +43,11 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
   };
 
   const levelColorMap: Record<string, string> = {
-    A1: 'border-emerald-600 text-emerald-400',
-    A2: 'border-teal-600 text-teal-400',
-    B1: 'border-amber-600 text-amber-400',
-    B2: 'border-orange-600 text-orange-400',
-    C1: 'border-rose-600 text-rose-400',
+    A1: 'border-zinc-600 text-zinc-400',
+    A2: 'border-zinc-600 text-zinc-400',
+    B1: 'border-zinc-600 text-zinc-400',
+    B2: 'border-zinc-600 text-zinc-400',
+    C1: 'border-zinc-600 text-zinc-400',
   };
 
   return (
@@ -86,26 +86,26 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
               onClick={() => onToggleFavorite(word.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer border ${
                 word.isFavorite
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500'
+                  ? 'bg-zinc-950/80 text-zinc-300 border-zinc-500'
                   : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a] hover:border-zinc-500'
               }`}
               title={word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
             >
               {word.isFavorite ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Guardada</span>
                 </>
               ) : (
                 <>
-                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <Plus className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Guardar</span>
                 </>
               )}
             </button>
             <button
               onClick={onClose}
-              className="flex items-center gap-1 px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500 text-xs font-bold transition-all cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 bg-zinc-600/20 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-500 text-xs font-bold transition-all cursor-pointer"
               title="Cerrar ficha (Esc)"
             >
               <X className="w-4 h-4" />
@@ -179,11 +179,11 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
           {/* Example Sentence */}
           {word.example && (
             <div className="bg-[#14161f] border border-[#27272a] p-4 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] uppercase tracking-wider font-bold">
-                <Quote className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
+                <Quote className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Frase en contexto</span>
               </div>
-              <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-emerald-400 pl-2.5">
+              <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-zinc-400 pl-2.5">
                 "{word.example}"
               </p>
               {word.collocation && (
@@ -223,7 +223,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
 
             <button
               onClick={() => onHideWord(word.id)}
-              className="flex items-center gap-1 text-zinc-500 hover:text-rose-400 transition-colors uppercase text-[11px] cursor-pointer"
+              className="flex items-center gap-1 text-zinc-500 hover:text-zinc-400 transition-colors uppercase text-[11px] cursor-pointer"
               title="Quitar palabra de la nube"
             >
               <EyeOff className="w-3.5 h-3.5" />

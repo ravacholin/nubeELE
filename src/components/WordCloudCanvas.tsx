@@ -16,7 +16,6 @@ import {
   RotateCcw,
   Sparkles,
   Shuffle,
-  Mic,
   Activity,
 } from 'lucide-react';
 import { InteractiveWordCard } from './InteractiveWordCard';
@@ -106,7 +105,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   nodesRef.current = nodes;
 
   // Mobile visual display mode: 'canvas' (floating/spiral physics) or 'mosaico' (flow tag cloud cluster)
-  const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>('canvas');
+  const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches ? 'mosaico' : 'canvas'
+  );
 
   // Measure container dimensions (accurately respect mobile screen width)
   useEffect(() => {
@@ -401,34 +402,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
           let fx = (node.targetX - node.x) * kSpring;
           let fy = (node.targetY - node.y) * kSpring;
 
-          // Living Buoyancy: Organic harmonic multi-wave undulating movement
-          // Makes words gently breathe and sway organically
-          const waveX =
-            Math.sin(now * node.floatFreq + node.phase) * 5.2 +
-            Math.cos(now * node.floatFreq * 0.6 + node.phase * 1.4) * 2.5;
-          const waveY =
-            Math.cos(now * (node.floatFreq * 1.1) + node.phase) * 6.0 +
-            Math.sin(now * node.floatFreq * 0.5 + node.phase * 1.2) * 2.8;
-
-          fx += waveX;
-          fy += waveY;
-
-          // Interactive Cursor Proximity Repulsion
-          // Words gently part and glide away from the mouse pointer
-          if (currentMouse) {
-            const nodeCenterX = node.x + node.width / 2;
-            const nodeCenterY = node.y + node.height / 2;
-            const dxMouse = nodeCenterX - currentMouse.x;
-            const dyMouse = nodeCenterY - currentMouse.y;
-            const mouseDist = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse) || 1;
-            const mouseRadius = 125;
-
-            if (mouseDist < mouseRadius) {
-              const repelForce = ((mouseRadius - mouseDist) / mouseRadius) * 110;
-              fx += (dxMouse / mouseDist) * repelForce;
-              fy += (dyMouse / mouseDist) * repelForce;
-            }
-          }
+          // Keep the resting layout calm; movement is reserved for dragging and rearranging.
 
           // Strict Rectangular 2D AABB Collision Separation
           // Guarantees words NEVER overlap horizontally or vertically
@@ -650,13 +624,13 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   const getCategoryBadge = (category: string) => {
     switch (category) {
       case 'sustantivo':
-        return <span className="text-[9px] sm:text-[10px] text-emerald-400 font-mono tracking-wider">[sust]</span>;
+        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[sust]</span>;
       case 'verbo':
-        return <span className="text-[9px] sm:text-[10px] text-amber-400 font-mono tracking-wider">[verb]</span>;
+        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[verb]</span>;
       case 'adjetivo':
-        return <span className="text-[9px] sm:text-[10px] text-indigo-400 font-mono tracking-wider">[adj]</span>;
+        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[adj]</span>;
       case 'expresion':
-        return <span className="text-[9px] sm:text-[10px] text-rose-400 font-mono tracking-wider">[expr]</span>;
+        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[expr]</span>;
       default:
         return null;
     }
@@ -781,13 +755,13 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                           }}
                           className={`p-0.5 transition-all cursor-pointer ${
                             item.isFavorite
-                              ? 'text-emerald-400 opacity-100'
-                              : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-emerald-400'
+                              ? 'text-zinc-400 opacity-100'
+                              : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-zinc-400'
                           }`}
                           title={item.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
                         >
                           {item.isFavorite ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-zinc-400" />
                           ) : (
                             <Plus className="w-3.5 h-3.5" />
                           )}
@@ -796,7 +770,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                           onClick={(e) => handleQuickAudio(e, item)}
                           className={`p-0.5 transition-opacity cursor-pointer ${
                             isPlaying
-                              ? 'text-emerald-400 opacity-100 animate-pulse'
+                              ? 'text-zinc-400 opacity-100 animate-pulse'
                               : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-white'
                           }`}
                           title="Pronunciación estudio IA"
@@ -872,15 +846,15 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                         }}
                         className={`p-1 transition-colors cursor-pointer ${
                           w.isFavorite
-                            ? 'text-emerald-400'
+                            ? 'text-zinc-400'
                             : isSelected
-                            ? 'text-black hover:text-emerald-700'
-                            : 'text-zinc-400 hover:text-emerald-400'
+                            ? 'text-black hover:text-zinc-700'
+                            : 'text-zinc-400 hover:text-zinc-400'
                         }`}
                         title={w.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
                       >
                         {w.isFavorite ? (
-                          <Check className="w-4 h-4 text-emerald-400" />
+                          <Check className="w-4 h-4 text-zinc-400" />
                         ) : (
                           <Plus className="w-4 h-4" />
                         )}
@@ -889,7 +863,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                         onClick={(e) => handleQuickAudio(e, w)}
                         className={`p-1 transition-colors cursor-pointer ${
                           isPlaying
-                            ? 'text-emerald-400 animate-pulse'
+                            ? 'text-zinc-400 animate-pulse'
                             : isSelected
                             ? 'text-black'
                             : 'text-zinc-400 hover:text-white'
@@ -944,11 +918,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       >
         {/* Top mini bar with switch back to canvas */}
         <div className="flex items-center justify-between pb-3 border-b border-[#1f2128] text-xs font-mono">
-          <div className="flex items-center gap-1.5 text-zinc-300">
-            <Mic className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-white">Nube Mosaico</span>
-            <span className="text-zinc-500 text-[10px]">[{words.length}]</span>
-          </div>
+          <span className="text-[10px] text-zinc-500">Tocá una palabra</span>
           <button
             onClick={() => setMobileViewStyle('canvas')}
             className="flex items-center gap-1 px-2.5 py-1 border border-[#27272a] bg-[#14161f] text-zinc-300 hover:text-white text-[10px] uppercase font-bold tracking-wider cursor-pointer"
@@ -958,82 +928,74 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         </div>
 
         {/* Cloud Tags wrap container - perfectly fits mobile screen */}
-        <div className="flex-1 py-5 flex flex-wrap items-center justify-center content-center gap-2">
+        <div className="flex-1 py-5 grid grid-cols-2 sm:flex sm:flex-wrap items-center sm:justify-center content-center gap-2">
           {words.map((w) => {
             const isSelected = selectedWord?.id === w.id;
             const isPlaying = playingWordId === w.id;
             const validArt = getValidArticle(w.category, w.article);
+            const displayWord = cleanDisplayWord(w.lemma || w.word);
+            const wideTile = displayWord.length > 8;
             const sizeClass =
               w.weight === 5
-                ? 'text-base font-extrabold py-2 px-3'
+                ? 'text-sm font-extrabold py-2 px-2'
                 : w.weight === 4
-                ? 'text-sm font-bold py-1.5 px-2.5'
+                ? 'text-sm font-bold py-2 px-2'
                 : w.weight === 3
-                ? 'text-xs font-semibold py-1.5 px-2'
-                : 'text-xs font-medium py-1 px-2';
+                ? 'text-xs font-semibold py-2 px-2'
+                : 'text-xs font-medium py-2 px-2';
 
             return (
               <div
                 key={w.id}
                 onClick={() => handleWordClick(w)}
-                className={`flex items-center gap-1.5 border font-mono transition-all cursor-pointer shadow-sm select-none ${sizeClass} ${
+                className={`flex items-center gap-1 min-w-0 border font-mono transition-all cursor-pointer select-none ${wideTile ? 'col-span-2 sm:col-span-1' : ''} ${sizeClass} ${
                   isSelected
                     ? 'bg-white text-black border-white shadow-xl scale-105 ring-2 ring-white/20'
                     : isPlaying
-                    ? 'bg-[#141d24] text-emerald-300 border-emerald-400 scale-105'
+                    ? 'bg-[#18181b] text-zinc-300 border-zinc-400 scale-105'
                     : 'bg-[#101218] border-[#22242c] text-zinc-200 hover:border-zinc-500'
                 }`}
               >
                 {validArt && (
                   <span className="text-[0.75em] opacity-60 font-normal">{validArt}</span>
                 )}
-                <span className="uppercase tracking-tight">
-                  {cleanDisplayWord(w.lemma || w.word)}
+                <span className="uppercase tracking-tight min-w-0 break-words">
+                  {displayWord}
                 </span>
-                <span className={`text-[9px] uppercase px-1 border opacity-80 ${
-                  isSelected ? 'border-black text-black' : 'border-zinc-700 text-zinc-400'
-                }`}>
-                  {w.level}
-                </span>
-                <div className="flex items-center gap-1 shrink-0 ml-auto">
+                <div className="flex items-center gap-3 shrink-0 ml-auto">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleFavorite?.(w.id);
                     }}
-                    className={`p-0.5 transition-colors cursor-pointer ${
+                    className={`relative before:absolute before:-inset-1.5 before:content-[''] p-0 transition-colors cursor-pointer ${
                       w.isFavorite
-                        ? 'text-emerald-400'
+                        ? 'text-zinc-400'
                         : isSelected
-                        ? 'text-black hover:text-emerald-700'
-                        : 'text-zinc-400 hover:text-emerald-400'
+                        ? 'text-black hover:text-zinc-700'
+                        : 'text-zinc-400 hover:text-zinc-400'
                     }`}
                     title={w.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
                   >
-                    {w.isFavorite ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    {w.isFavorite ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                   </button>
                   <button
                     onClick={(e) => handleQuickAudio(e, w)}
-                    className={`p-0.5 transition-colors cursor-pointer ${
+                    className={`relative before:absolute before:-inset-1.5 before:content-[''] p-0 transition-colors cursor-pointer ${
                       isPlaying
-                        ? 'text-emerald-400 animate-pulse'
+                        ? 'text-zinc-400 animate-pulse'
                         : isSelected
                         ? 'text-black'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                     title="Pronunciación"
                   >
-                    <Volume2 className="w-3.5 h-3.5" />
+                    <Volume2 className="w-3 h-3" />
                   </button>
                 </div>
               </div>
             );
           })}
-        </div>
-
-        {/* Bottom help bar */}
-        <div className="pt-3 border-t border-[#1f2128] flex items-center justify-between text-[11px] font-mono text-zinc-400">
-          <span>Toca cualquier palabra para escuchar y abrir ficha</span>
         </div>
 
         {/* Selected Word Drawer */}
@@ -1072,14 +1034,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       }}
     >
       {/* Top Floating Mini-Toolbar: Voice profile & Physics controls */}
-      <div className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Unified Audio Indicator */}
-        <div className="pointer-events-auto flex items-center gap-1.5 bg-[#101218]/90 backdrop-blur-sm border border-[#27272a] px-2 sm:px-2.5 py-1 text-xs font-mono text-zinc-300">
-          <Mic className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span className="text-zinc-400 uppercase text-[10px] tracking-wider hidden sm:inline">Audio:</span>
-          <span className="text-white font-bold text-[10px] sm:text-[11px] tracking-wide">Voz didáctica ELE</span>
-        </div>
-
+      <div className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 z-20 flex flex-wrap items-center justify-end gap-2 pointer-events-none">
         {/* Dynamic Physics Controls & Mobile Mode Switch */}
         <div className="pointer-events-auto flex items-center gap-1.5 bg-[#101218]/90 backdrop-blur-sm border border-[#27272a] p-1 text-xs font-mono">
           {dimensions.width < 640 && (
@@ -1134,7 +1089,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                 isSelected
                   ? 'bg-white border-white shadow-2xl text-black scale-105 ring-2 ring-white/20'
                   : isPlaying
-                  ? 'bg-[#141d24] border-emerald-400 shadow-xl text-emerald-300 scale-105'
+                  ? 'bg-[#18181b] border-zinc-400 shadow-xl text-zinc-300 scale-105'
                   : isHovered
                   ? 'bg-[#161822] border-zinc-400 shadow-xl text-white scale-[1.03]'
                   : 'bg-[#101218]/85 border-[#22242c] hover:border-zinc-500 shadow-sm'
@@ -1172,15 +1127,15 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                 }}
                 className={`transition-all p-0.5 rounded cursor-pointer touch-manipulation ${
                   node.word.isFavorite
-                    ? 'text-emerald-400 opacity-100'
+                    ? 'text-zinc-400 opacity-100'
                     : isHovered
-                    ? 'opacity-100 text-zinc-300 hover:text-emerald-400'
-                    : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 sm:text-zinc-500 hover:text-emerald-400'
-                } ${isSelected ? 'text-black hover:text-emerald-800' : ''}`}
+                    ? 'opacity-100 text-zinc-300 hover:text-zinc-400'
+                    : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 sm:text-zinc-500 hover:text-zinc-400'
+                } ${isSelected ? 'text-black hover:text-zinc-800' : ''}`}
                 title={node.word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
               >
                 {node.word.isFavorite ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-zinc-400" />
                 ) : (
                   <Plus className="w-3.5 h-3.5" />
                 )}
@@ -1191,7 +1146,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                 onClick={(e) => handleQuickAudio(e, node.word)}
                 className={`transition-all p-0.5 rounded cursor-pointer touch-manipulation ${
                   isPlaying
-                    ? 'text-emerald-400 animate-pulse opacity-100'
+                    ? 'text-zinc-400 animate-pulse opacity-100'
                     : isHovered
                     ? 'opacity-100 text-zinc-300 hover:text-white'
                     : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 sm:text-zinc-500'
@@ -1208,7 +1163,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
                     isSelected
                       ? 'border-zinc-400 text-zinc-700'
                       : isPlaying
-                      ? 'border-emerald-500 text-emerald-300'
+                      ? 'border-zinc-500 text-zinc-300'
                       : 'border-zinc-700 text-zinc-400'
                   }`}
                 >

@@ -10,9 +10,9 @@ export const PALETTES: Record<ColorPaletteId, ColorPalette> = {
       '#ffffff', // High-contrast crisp white
       '#e4e4e7', // Platinum zinc
       '#a1a1aa', // Cool silver
-      '#38bdf8', // Cyber sky
-      '#4ade80', // Electric mint
-      '#facc15', // Acid signal yellow
+      '#d4d4d8',
+      '#fafafa',
+      '#b4b4bc',
     ],
     accentColor: '#ffffff',
   },
