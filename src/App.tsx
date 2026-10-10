@@ -1,3 +1,4 @@
+import { requestWordDetails } from './utils/wordDetails';
 import { requestCloud } from './utils/cloudRequests';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -16,6 +17,7 @@ import {
   isWordSaved,
   saveWord,
   removeSavedWord,
+  updateSavedWordDetails,
 } from './utils/savedWordsStorage';
 import {
   Search,
@@ -63,6 +65,34 @@ export default function App() {
 
   // Interactive Exploration Word
   const [selectedWord, setSelectedWord] = useState<WordItem | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRetry, setDetailRetry] = useState(0);
+  useEffect(() => {
+    setDetailError(null);
+    if (!selectedWord?.detailsPending) return;
+    let active = true;
+    const word = selectedWord;
+    requestWordDetails(word, currentTopic, getApiHeaders()).then(details => {
+      if (!active) return;
+      const enrichment = { ...details, detailsPending: false };
+      setWords(list => list.map(item => item.id === word.id ? { ...item, ...enrichment } : item));
+      setSelectedWord(current => current?.id === word.id ? { ...current, ...enrichment } : current);
+      updateSavedWordDetails(word.id, enrichment);
+    }).catch(error => { if (active) setDetailError(error.message || 'No se pudo completar la ficha.'); });
+    return () => { active = false; };
+  }, [selectedWord?.id, currentTopic, detailRetry]);
+
+  // Warm just one likely selection after the cloud is usable, never all its cards.
+  useEffect(() => {
+    if (selectedWord || !words.length) return;
+    const first = [...words].sort((a, b) => b.weight - a.weight)[0];
+    if (!first.detailsPending) return;
+    const timer = setTimeout(() => {
+      requestWordDetails(first, currentTopic, getApiHeaders()).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [words, currentTopic, selectedWord?.id]);
+  const detailState = { loading: !!selectedWord?.detailsPending && !detailError, error: detailError, retry: () => setDetailRetry(value => value + 1) };
   const [isFullModalOpen, setIsFullModalOpen] = useState(false);
 
   // Modals & Saved Words
@@ -77,6 +107,7 @@ export default function App() {
   useEffect(() => {
     const handleKeyChange = () => {
       setHasCustomApiKey(!!getStoredApiKey());
+      setDetailRetry(value => value + 1);
     };
     const handleSavedChange = () => {
       setSavedWordsList(getSavedWords());
@@ -573,6 +604,7 @@ export default function App() {
               layoutMode={layoutMode}
               onSelectWord={(w) => setSelectedWord(w)}
               selectedWord={selectedWord}
+              detailState={detailState}
               onCloseSelectedWord={() => setSelectedWord(null)}
               onPrevWord={handlePrevWord}
               onNextWord={handleNextWord}
@@ -672,7 +704,9 @@ export default function App() {
       {/* Full Word Detail Drawer / Modal */}
       {isFullModalOpen && selectedWord && (
         <WordDetailModal
+          key={selectedWord.id}
           word={selectedWord}
+          detailState={detailState}
           onClose={() => setIsFullModalOpen(false)}
           onUpdateWeight={handleUpdateWeight}
           onToggleFavorite={handleToggleFavorite}

@@ -1,3 +1,4 @@
+import { WordDetailsStatus, WordLexicalExtras, type DetailState } from './WordDetailsStatus';
 import React, { useState } from 'react';
 import { WordItem } from '../types';
 import { playSpanishSpeech } from '../utils/audio';
@@ -7,6 +8,7 @@ import { Volume2, Volume1, Star, Plus, Check, Minus, EyeOff, X, BookOpen, Quote 
 
 interface WordDetailModalProps {
   word: WordItem | null;
+  detailState?: DetailState;
   onClose: () => void;
   onUpdateWeight: (id: string, delta: number) => void;
   onToggleFavorite: (id: string) => void;
@@ -15,6 +17,7 @@ interface WordDetailModalProps {
 
 export const WordDetailModal: React.FC<WordDetailModalProps> = ({
   word,
+  detailState,
   onClose,
   onUpdateWeight,
   onToggleFavorite,
@@ -160,6 +163,8 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
             </div>
           </div>
 
+          {word.detailsPending ? <WordDetailsStatus state={detailState} /> : <>
+          <WordLexicalExtras word={word} />
           {/* Meaning Block */}
           <div className="bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
             <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
@@ -194,6 +199,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
             </div>
           )}
 
+          </>}
           {/* Controls: Weight adjustment & Hide */}
           <div className="flex items-center justify-between pt-2 border-t border-[#282828] text-xs">
             <div className="flex items-center gap-2">

@@ -11,12 +11,23 @@ test('validates and generates with available Gemini models when the fixed model 
     calls.push(`${req.method} ${req.url}`);
     res.setHeader('Content-Type', 'application/json');
     if (req.method === 'GET' && req.url?.startsWith('/v1beta/models')) {
-      res.end(JSON.stringify({ models: [{ name: String(req.headers['x-goog-api-key']).includes('fast-fixture') ? 'models/gemini-2.5-flash' : 'models/gemini-current-flash', supportedGenerationMethods: ['generateContent'] }] }));
+      const names = String(req.headers['x-goog-api-key']).includes('fast-fixture')
+        ? ['gemini-2.5-flash', 'gemini-2.5-flash-lite'] : ['gemini-current-flash'];
+      res.end(JSON.stringify({ models: names.map(name => ({ name: `models/${name}`, supportedGenerationMethods: ['generateContent'] })) }));
     } else if (req.url?.includes(':generateContent')) {
       let body = '';
       for await (const chunk of req) body += chunk;
-      payloads.push(JSON.parse(body));
-      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ title: 'Viajes', words: [{ id: 'g1', word: 'el viaje', lemma: 'viaje', article: 'el', category: 'sustantivo', level: 'A2', weight: 3, meaning: 'Traslado a otro lugar.', example: 'Mi viaje empieza mañana.' }] }) }] } }] }));
+      const payload = JSON.parse(body);
+      payloads.push(payload);
+      if (req.url?.includes('flash-lite:')) {
+        res.statusCode = 429;
+        res.end(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota reached' } }));
+        return;
+      }
+      const data = payload.generationConfig.responseSchema.properties.words
+        ? { title: 'Viajes', words: [{ id: 'g1', word: 'el viaje', lemma: 'viaje', article: 'el', category: 'sustantivo', level: 'A2', weight: 3 }] }
+        : { meaning: 'Traslado a otro lugar.', example: 'Mi viaje empieza mañana.', synonyms: ['recorrido'], translationEn: 'trip', collocation: 'hacer un viaje', pronunciationHint: 'VIA-je' };
+      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(data) }] } }] }));
     } else {
       res.statusCode = 404;
       res.end(JSON.stringify({ error: { code: 404, status: 'NOT_FOUND', message: 'Requested model is not found for API version v1beta.' } }));
@@ -53,6 +64,9 @@ test('validates and generates with available Gemini models when the fixed model 
     assert.equal(cloud.source, 'gemini');
     assert.equal(cloud.modelUsed, 'gemini-current-flash');
     assert.equal(cloud.data.words[0].lemma, 'viaje');
+    assert.equal(cloud.data.words[0].detailsPending, true);
+    assert.equal(cloud.data.words[0].meaning, '');
+    assert.equal(payloads[0].generationConfig.responseSchema.properties.words.items.properties.meaning, undefined, 'The first request never asks for full cards');
     const second = await originalFetch(base + '/api/generate-cloud', { method: 'POST', headers, body: JSON.stringify({ prompt: 'otra temática espacial' }) });
     assert.equal((await second.json()).source, 'gemini');
     assert.equal(calls.filter(call => call.startsWith('GET ')).length, 1, 'Validation warms the model list for later generations');
@@ -66,6 +80,16 @@ test('validates and generates with available Gemini models when the fixed model 
     assert.equal((await fast.json()).modelUsed, 'gemini-2.5-flash');
     assert.equal(calls.filter(call => call.startsWith('GET ')).length, 3, 'Model catalogs are isolated by API key');
     assert.equal(payloads.at(-1).generationConfig.thinkingConfig.thinkingBudget, 0);
+    const details = await originalFetch(base + '/api/word-details', {
+      method: 'POST', headers: { ...headers, 'x-gemini-api-key': 'AIzaSy-fast-fixture' },
+      body: JSON.stringify({ word: 'viaje', topic: 'turismo', level: 'A2' }),
+    });
+    const card = await details.json();
+    assert.equal(details.status, 200);
+    assert.equal(card.data.meaning, 'Traslado a otro lugar.');
+    assert.deepEqual(card.data.synonyms, ['recorrido']);
+    assert.equal(calls.filter(call => call.includes('flash-lite:generateContent')).length, 1, 'Quota-limited model is skipped for the subsequent detail call');
+    assert.equal(calls.filter(call => call.startsWith('GET ')).length, 3);
   } finally {
     globalThis.fetch = originalFetch;
     await Promise.all([api, google].map(server => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))));

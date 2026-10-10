@@ -1,3 +1,4 @@
+import { runFastCascade } from './src/server/fastCascade.js';
 import 'dotenv/config';
 import express from 'express';
 import { createHash } from 'node:crypto';
@@ -36,6 +37,7 @@ if (apiKey) {
  * or falling back to the system's default GEMINI_API_KEY.
  */
 const clients = new Map<string, { client: GoogleGenAI; expires: number }>();
+const textCooldowns = new WeakMap<GoogleGenAI, Map<string, number>>();
 const modelLists = new WeakMap<GoogleGenAI, { expires: number; promise: Promise<string[]> }>();
 
 function getGenAIClient(customKey?: string | null): GoogleGenAI | null {
@@ -64,8 +66,8 @@ function getGenAIClient(customKey?: string | null): GoogleGenAI | null {
  * Prefer lightweight text models, but only call names advertised by Google for this key.
  */
 const PREFERRED_TEXT_MODELS = [
-  'gemini-2.5-flash',      // Primary reliable stable flash model
-  'gemini-2.5-flash-lite', // Lightweight, fast with separate quota
+  'gemini-2.5-flash-lite', // Prefer latency for small vocabulary tasks
+  'gemini-2.5-flash',
   'gemini-3-flash-preview',
   'gemini-flash-latest',
 ];
@@ -93,7 +95,7 @@ async function getAvailableTextModels(client: GoogleGenAI, refresh = false): Pro
 }
 
 async function listTextModels(client: GoogleGenAI): Promise<string[]> {
-  const pager = await client.models.list({ config: { pageSize: 100 } });
+  const pager = await client.models.list({ config: { pageSize: 100, abortSignal: AbortSignal.timeout(4000), httpOptions: { timeout: 4000, retryOptions: { attempts: 1 } } } });
   const names: string[] = [];
   for await (const model of pager) {
     const name = model.name?.replace(/^models\//, '');
@@ -105,7 +107,7 @@ async function listTextModels(client: GoogleGenAI): Promise<string[]> {
   return [...new Set(names)].sort((a, b) => {
     const rank = (name: string) => {
       const preferred = PREFERRED_TEXT_MODELS.indexOf(name);
-      return preferred >= 0 ? preferred : name.includes('flash') ? 10 : 20;
+      return name.includes('flash-lite') ? (preferred >= 0 ? preferred : 0.5) : preferred >= 0 ? preferred : name.includes('flash') ? 10 : 20;
     };
     return rank(a) - rank(b) || b.localeCompare(a);
   });
@@ -156,42 +158,26 @@ async function generateContentWithCascade(
   }
 
   const availableModels = await getAvailableTextModels(activeClient);
-  for (const model of availableModels.slice(0, 6)) {
-    try {
-      console.log(`[Gemini Cascade] Generando contenido con modelo: ${model}...`);
-      const response = await activeClient.models.generateContent({
-        model,
-        contents: configPayload.contents,
-        config: {
-          systemInstruction: configPayload.systemInstruction,
-          responseMimeType: configPayload.responseMimeType || 'application/json',
-          responseSchema: configPayload.responseSchema,
-          // Vocabulary extraction needs no reasoning phase. Other models retain their defaults.
-          ...(configPayload.fastVocabulary && /^gemini-2\.5-flash(?:-lite)?$/.test(model)
-            ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-        },
-      });
-
-      const text = response.text;
-      if (text && text.trim().length > 0) {
-        console.log(`[Gemini Cascade] ¡Generación exitosa con ${model}!`);
-        return { text, modelUsed: model };
-      }
-    } catch (err: any) {
-      const isQuota = isTransientOrDemandError(err);
-      if (isQuota) {
-        console.log(`[Gemini Cascade] Modelo '${model}' pausado por cuota o alta demanda. Conmutando al siguiente modelo...`);
-
-      } else {
-        if (String(err.status || err.code) === '404') modelLists.delete(activeClient);
-        console.log(`[Gemini Cascade] Modelo '${model}' no disponible. Conmutando...`);
-      }
-    }
-  }
-
-  modelLists.delete(activeClient);
-  console.log('[Gemini Cascade] Todos los modelos de IA en pausa. Activando motor léxico ELE de respaldo garantizado.');
-  return null;
+  let cooldowns = textCooldowns.get(activeClient);
+  if (!cooldowns) { cooldowns = new Map(); textCooldowns.set(activeClient, cooldowns); }
+  return runFastCascade(availableModels, async (model, signal, timeout) => {
+    const response = await activeClient.models.generateContent({
+      model,
+      contents: configPayload.contents,
+      config: {
+        abortSignal: signal,
+        httpOptions: { timeout, retryOptions: { attempts: 1 } },
+        systemInstruction: configPayload.systemInstruction,
+        responseMimeType: configPayload.responseMimeType || 'application/json',
+        responseSchema: configPayload.responseSchema,
+        ...(configPayload.fastVocabulary && /^gemini-2\.5-flash(?:-lite)?$/.test(model)
+          ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+      },
+    });
+    const text = response.text || '';
+    if ((configPayload.responseMimeType || 'application/json') === 'application/json') JSON.parse(text);
+    return text;
+  }, cooldowns);
 }
 
 /**
@@ -524,6 +510,39 @@ function sanitizeWordObject(w: any, index: number) {
 }
 
 // Endpoint: Generate Word Cloud
+app.post('/api/word-details', async (req, res) => {
+  const { word, topic = '', level = 'A2', category = 'sustantivo' } = req.body;
+  if (typeof word !== 'string' || !word.trim() || word.length > 200) {
+    return res.status(400).json({ success: false, error: 'Elegí una palabra válida.' });
+  }
+  const client = getGenAIClient((req.headers['x-gemini-api-key'] as string) || req.body?.apiKey);
+  if (!client) return res.status(400).json({ success: false, error: 'Configurá tu API key para completar la ficha.' });
+  try {
+    const result = await generateContentWithCascade({
+      contents: JSON.stringify({ word, topic: String(topic).slice(0, 500), level, category }),
+      systemInstruction: 'Eres especialista ELE. Completa UNA ficha de vocabulario en el contexto y nivel indicados. Devuelve una definición breve y precisa, traducción inglesa, un ejemplo natural de hasta 12 palabras, una colocación, una guía breve de pronunciación y hasta 3 sinónimos adecuados a ese sentido (array vacío si no hay). No inventes sinónimos ni explicaciones regionales.',
+      fastVocabulary: true,
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          meaning: { type: Type.STRING }, translationEn: { type: Type.STRING },
+          example: { type: Type.STRING }, collocation: { type: Type.STRING },
+          pronunciationHint: { type: Type.STRING },
+          synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+        required: ['meaning', 'translationEn', 'example', 'collocation', 'pronunciationHint', 'synonyms'],
+      },
+    }, client);
+    if (result) {
+      const parsed = JSON.parse(result.text);
+      if (typeof parsed.meaning !== 'string' || !parsed.meaning.trim() || typeof parsed.example !== 'string' || !parsed.example.trim()) throw new Error('Incomplete details');
+      const data = Object.fromEntries(['meaning', 'translationEn', 'example', 'collocation', 'pronunciationHint'].map(key => [key, typeof parsed[key] === 'string' ? parsed[key] : '']));
+      return res.json({ success: true, data: { ...data, synonyms: Array.isArray(parsed.synonyms) ? parsed.synonyms.filter((value: unknown) => typeof value === 'string').slice(0, 3) : [] }, source: 'gemini', modelUsed: result.modelUsed });
+    }
+  } catch { /* Preserve the usable cloud while allowing the detail request to retry. */ }
+  return res.status(503).json({ success: false, error: 'No se pudo completar esta ficha ahora. Podés reintentar.' });
+});
+
 app.post('/api/generate-cloud', async (req, res) => {
   try {
     const { prompt = '', level = 'Todos', focus = 'general' } = req.body;
@@ -544,35 +563,11 @@ app.post('/api/generate-cloud', async (req, res) => {
     // Try Gemini with multi-model cascade waterfall
     if (client) {
       try {
-        const systemInstruction = `Eres un experto pedagogo y lingüista de Español como Lengua Extranjera (ELE / CEFR).
-Tu misión es diseñar nubes de palabras léxicas, ricas, precisas y visualmente atractivas para clases de español en línea.
-Las palabras deben ser representativas del tema solicitado por el profesor o estudiante.
-Para cada palabra incluye:
-- 'word': la palabra o locución en español con su artículo si es sustantivo (ej: 'el calabacín', 'la alcachofa', 'sofreír')
-- 'lemma': la forma lematizada (ej: 'calabacín', 'sofreír')
-- 'article': 'el' | 'la' | 'los' | 'las' | null (si es verbo o adjetivo)
-- 'category': 'sustantivo' | 'verbo' | 'adjetivo' | 'expresion'
-- 'subcategory': subcategoría temática (ej: 'técnica directa', 'tubérculos', 'emociones positivas', etc.)
-- 'level': nivel MCER estimado ('A1' | 'A2' | 'B1' | 'B2' | 'C1')
-- 'weight': número entero del 1 al 5 indicando relevancia/frecuencia en la nube (5 = palabra central y grande, 1 = más sutil/específica)
-- 'meaning': definición concisa y pedagógica en español simple
-- 'translationEn': traducción al inglés para apoyo rápido
-- 'example': frase natural y viva en español que muestre el uso real en contexto
-- 'collocation': colocación habitual o combinación frecuente en español (ej: 'sofreír a fuego lento')
-- 'pronunciationHint': guía de acentuación fonética o apunte de pronunciación útil para estudiantes
-
-Genera 16 palabras bien balanceadas. Usa definiciones de una oración breve, ejemplos naturales de hasta 12 palabras y apuntes de pronunciación concisos. Mantén todos los campos solicitados.
-Además, genera:
-- 'title': Título pedagógico y elegante en español
-- 'summary': Resumen de 1-2 oraciones del objetivo léxico de esta nube
-- 'suggestedTopics': 4 temas relacionados para que la clase continúe explorando
-- 'challenge': Un reto conversacional o ejercicio de producción oral/escrita para los alumnos
-- 'oddOneOut': Una 'palabra intrusa' que NO pertenece al campo semántico (con su significado y la razón didáctica por la cual no encaja), ideal para el juego 'Encuentra el intruso'`;
-
-        const userMessage = `Tema pedido: "${prompt}".
-Nivel MCER deseado: ${level}.
-Enfoque: ${focus}.
-Genera una nube de palabras completa y enriquecida en formato JSON.`;
+        const systemInstruction = `Eres especialista en vocabulario ELE. Genera 16 palabras representativas del tema y nivel solicitado.
+Devuelve solo la nube inicial: word (con artículo en sustantivos), lemma, article (vacío para otras categorías), category (sustantivo, verbo, adjetivo, expresion o adverbio), level (A1-C1), weight (1-5).
+No generes definiciones, traducciones, sinónimos ni ejemplos: se solicitarán al abrir cada ficha.
+Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa vocabulario preciso y natural.`;
+        const userMessage = `Tema: ${prompt}. Nivel MCER: ${level}. Enfoque: ${focus}.`;
 
         const cascadeRes = await generateContentWithCascade(
           {
@@ -588,40 +583,23 @@ Genera una nube de palabras completa y enriquecida en formato JSON.`;
                   type: Type.ARRAY,
                   items: { type: Type.STRING },
                 },
-                challenge: { type: Type.STRING },
-                oddOneOut: {
-                  type: Type.OBJECT,
-                  properties: {
-                    word: { type: Type.STRING },
-                    meaning: { type: Type.STRING },
-                    reason: { type: Type.STRING },
-                  },
-                  required: ['word', 'meaning', 'reason'],
-                },
                 words: {
                   type: Type.ARRAY,
                   items: {
                     type: Type.OBJECT,
                     properties: {
-                      id: { type: Type.STRING },
                       word: { type: Type.STRING },
                       lemma: { type: Type.STRING },
                       article: { type: Type.STRING },
                       category: { type: Type.STRING },
-                      subcategory: { type: Type.STRING },
                       level: { type: Type.STRING },
                       weight: { type: Type.INTEGER },
-                      meaning: { type: Type.STRING },
-                      translationEn: { type: Type.STRING },
-                      example: { type: Type.STRING },
-                      collocation: { type: Type.STRING },
-                      pronunciationHint: { type: Type.STRING },
                     },
-                    required: ['word', 'category', 'level', 'weight', 'meaning', 'example'],
+                    required: ['word', 'lemma', 'article', 'category', 'level', 'weight'],
                   },
                 },
               },
-              required: ['title', 'summary', 'words', 'suggestedTopics', 'challenge'],
+              required: ['title', 'summary', 'words', 'suggestedTopics'],
             },
           },
           client
@@ -629,13 +607,17 @@ Genera una nube de palabras completa y enriquecida en formato JSON.`;
 
         if (cascadeRes && cascadeRes.text) {
           const parsed = JSON.parse(cascadeRes.text);
-          parsed.words = (parsed.words || []).map(sanitizeWordObject);
+          if (!Array.isArray(parsed.words) || !parsed.words.length) throw new Error('Empty cloud');
+          parsed.challenge = '';
+          parsed.words = parsed.words.map((word: any, index: number) => ({ ...sanitizeWordObject(word, index), meaning: '', example: '', detailsPending: true, topicContext: cleanPrompt }));
           return res.json({ success: true, data: parsed, source: 'gemini', modelUsed: cascadeRes.modelUsed });
         }
       } catch (geminiError: any) {
-        console.log('[Gemini Cascade] Activando motor léxico ELE por contingencia');
+        console.log('[Gemini] No se pudo completar la nube en este intento.');
       }
     }
+
+    if (client) return res.status(503).json({ success: false, error: 'Los modelos de Gemini disponibles no respondieron a tiempo. Volvé a intentar en unos segundos.' });
 
     // Resilient Fallback: Match curated or synthesize
     for (const [key, val] of Object.entries(CURATED_SETS)) {

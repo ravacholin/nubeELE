@@ -1,3 +1,4 @@
+import type { DetailState } from './WordDetailsStatus';
 import { packCloudBoxes } from '../utils/cloudLayout';
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { WordItem, LayoutMode, ColorPalette } from '../types';
@@ -27,6 +28,7 @@ interface WordCloudCanvasProps {
   layoutMode: LayoutMode;
   onSelectWord: (word: WordItem) => void;
   selectedWord: WordItem | null;
+  detailState?: DetailState;
   onCloseSelectedWord: () => void;
   onPrevWord: () => void;
   onNextWord: () => void;
@@ -62,6 +64,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   layoutMode,
   onSelectWord,
   selectedWord,
+  detailState,
   onCloseSelectedWord,
   onPrevWord,
   onNextWord,
@@ -660,7 +663,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
         {selectedWord && (
           <InteractiveWordCard
+            key={selectedWord.id}
             word={selectedWord}
+            detailState={detailState}
             totalWords={words.length}
             currentIndex={currentIndex >= 0 ? currentIndex : 0}
             onClose={onCloseSelectedWord}
@@ -767,7 +772,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
         {selectedWord && (
           <InteractiveWordCard
+            key={selectedWord.id}
             word={selectedWord}
+            detailState={detailState}
             totalWords={words.length}
             currentIndex={currentIndex >= 0 ? currentIndex : 0}
             onClose={onCloseSelectedWord}
@@ -873,7 +880,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         {/* Selected Word Drawer */}
         {selectedWord && (
           <InteractiveWordCard
+            key={selectedWord.id}
             word={selectedWord}
+            detailState={detailState}
             totalWords={words.length}
             currentIndex={currentIndex >= 0 ? currentIndex : 0}
             onClose={onCloseSelectedWord}
@@ -995,7 +1004,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       {/* Interactive Word Inspector Card - ALWAYS active */}
       {selectedWord && (
         <InteractiveWordCard
+            key={selectedWord.id}
           word={selectedWord}
+          detailState={detailState}
           totalWords={words.length}
           currentIndex={currentIndex >= 0 ? currentIndex : 0}
           onClose={onCloseSelectedWord}

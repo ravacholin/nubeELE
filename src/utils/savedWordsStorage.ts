@@ -69,3 +69,13 @@ export function toggleSavedWord(word: WordItem): boolean {
     return true;
   }
 }
+
+/** Enrich an existing saved card without saving a word the user removed. */
+export function updateSavedWordDetails(id: string, details: Partial<WordItem>): void {
+  const current = getSavedWords();
+  if (!current.some(word => word.id === id)) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current.map(word => word.id === id ? { ...word, ...details } : word)));
+    window.dispatchEvent(new Event('nube-saved-words-changed'));
+  } catch { /* Storage may be unavailable in private browsing. */ }
+}

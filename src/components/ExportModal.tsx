@@ -33,7 +33,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     let out = `# ${title} - Vocabulario de Clase\n\n`;
     words.forEach((w) => {
       const cleanW = cleanDisplayWord(w.word);
-      out += `- **${cleanW}** (${w.category}, ${w.level}): ${w.meaning}\n`;
+      out += `- **${cleanW}** (${w.category}, ${w.level})${w.meaning ? `: ${w.meaning}` : ''}\n`;
       if (w.example) out += `  *Ejemplo:* "${w.example}"\n`;
       if (w.collocation) out += `  *Colocación:* ${w.collocation}\n`;
       if (w.translationEn) out += `  *EN:* ${w.translationEn}\n`;
@@ -42,7 +42,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const getSimpleList = () => {
-    return words.map((w) => `${cleanDisplayWord(w.word)} - ${w.meaning}`).join('\n');
+    return words.map((w) => `${cleanDisplayWord(w.word)}${w.meaning ? ` - ${w.meaning}` : ''}`).join('\n');
   };
 
   const handleCopy = (text: string, formatName: string) => {
@@ -92,6 +92,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </div>
 
         <div className="p-5 space-y-4 text-xs">
+          {words.some(word => word.detailsPending) && <p className="text-zinc-400">Se exportan todas las palabras y los detalles de las fichas que ya abriste.</p>}
           <p className="text-zinc-300 font-sans leading-relaxed">
             Comparte la lista de vocabulario con tus estudiantes por chat, documento o campus virtual.
           </p>

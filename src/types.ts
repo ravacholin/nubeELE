@@ -26,6 +26,9 @@ export interface WordItem {
   subcategory?: string;
   level: CEFRLevel;
   weight: number; // 1 to 5
+  detailsPending?: boolean;
+  topicContext?: string;
+  synonyms?: string[];
   meaning: string;
   translationEn?: string;
   example: string;

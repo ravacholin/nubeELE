@@ -1,3 +1,4 @@
+import { WordDetailsStatus, WordLexicalExtras, type DetailState } from './WordDetailsStatus';
 import React, { useState, useEffect } from 'react';
 import { WordItem } from '../types';
 import { playSpanishSpeech } from '../utils/audio';
@@ -20,6 +21,7 @@ import {
 
 interface InteractiveWordCardProps {
   word: WordItem;
+  detailState?: DetailState;
   totalWords: number;
   currentIndex: number;
   onClose: () => void;
@@ -31,6 +33,7 @@ interface InteractiveWordCardProps {
 
 export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
   word,
+  detailState,
   totalWords,
   currentIndex,
   onClose,
@@ -43,6 +46,8 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
   const [isPlayingSentence, setIsPlayingSentence] = useState(false);
   const [extraExample, setExtraExample] = useState<string | null>(null);
   const [isLoadingExtra, setIsLoadingExtra] = useState(false);
+
+  useEffect(() => { setExtraExample(null); }, [word.id]);
 
   // Close card when pressing Escape
   useEffect(() => {
@@ -277,6 +282,8 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
           </div>
         )}
 
+        {word.detailsPending ? <WordDetailsStatus state={detailState} /> : <>
+        <WordLexicalExtras word={word} />
         {/* Pedagogical Meaning */}
         <div className="bg-[#141414] border border-[#282828] p-3.5 space-y-1">
           <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-mono uppercase tracking-wider font-bold">
@@ -353,6 +360,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
+        </>}
       </div>
 
       {/* Sticky Bottom Bar with Quick Close Button for mobile ease */}
