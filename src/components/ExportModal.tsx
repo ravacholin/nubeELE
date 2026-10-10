@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WordItem } from '../types';
 import { cleanDisplayWord } from '../utils/grammar';
 import { X, Copy, Check, Download } from 'lucide-react';
@@ -17,6 +17,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   words,
 }) => {
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -56,16 +65,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="export-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-[#0d0e14] border border-[#27272a] shadow-2xl overflow-hidden font-mono"
+        className="w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#22242c] bg-[#12131a]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#282828] bg-[#141414]">
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h3 id="export-title" className="text-xs font-bold uppercase tracking-wider text-white">
               Exportar léxico de clase
             </h3>
             <span className="text-[10px] text-zinc-400">
@@ -74,6 +84,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar exportación"
             className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -86,7 +97,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </p>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 bg-[#14161f] border border-[#27272a]">
+            <div className="flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
               <div>
                 <span className="font-bold text-white uppercase text-[11px] block">
                   Formato Markdown / Ficha completa
@@ -104,7 +115,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-[#14161f] border border-[#27272a]">
+            <div className="flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
               <div>
                 <span className="font-bold text-white uppercase text-[11px] block">
                   Lista simple de palabras
@@ -115,7 +126,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </div>
               <button
                 onClick={() => handleCopy(getSimpleList(), 'simple')}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
               >
                 {copiedFormat === 'simple' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedFormat === 'simple' ? 'Copiado' : 'Copiar'}</span>
@@ -123,7 +134,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[#22242c] flex items-center justify-between">
+          <div className="pt-2 border-t border-[#282828] flex items-center justify-between">
             <button
               onClick={handleDownloadText}
               className="flex items-center gap-1.5 text-zinc-400 hover:text-white uppercase text-[11px] transition-colors cursor-pointer"

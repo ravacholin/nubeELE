@@ -4,8 +4,8 @@ export const PALETTES: Record<ColorPaletteId, ColorPalette> = {
   noche: {
     id: 'noche',
     name: 'Obsidiana & Cal',
-    bgClass: 'bg-[#090a0f]',
-    cloudBg: '#090a0f',
+    bgClass: 'bg-[#0c0c0c]',
+    cloudBg: '#0c0c0c',
     textColors: [
       '#ffffff', // High-contrast crisp white
       '#e4e4e7', // Platinum zinc

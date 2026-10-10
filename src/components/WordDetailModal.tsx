@@ -58,11 +58,11 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg bg-[#0d0e14] border border-[#27272a] shadow-2xl overflow-hidden font-mono flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Ribbon */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#22242c] bg-[#12131a] shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#282828] bg-[#141414] shrink-0">
           <div className="flex items-center gap-2 text-xs text-zinc-400">
             <span className="uppercase text-white font-bold">{word.category}</span>
             {word.subcategory && (
@@ -87,7 +87,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer border ${
                 word.isFavorite
                   ? 'bg-zinc-950/80 text-zinc-300 border-zinc-500'
-                  : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a] hover:border-zinc-500'
+                  : 'bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 border-[#27272a] hover:border-zinc-500'
               }`}
               title={word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
             >
@@ -151,7 +151,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
               </button>
               <button
                 onClick={() => setSpeechRate((r) => (r === 0.9 ? 0.65 : 0.9))}
-                className="px-2 py-1.5 bg-[#181920] border border-[#27272a] text-zinc-300 hover:text-white text-xs transition-colors cursor-pointer"
+                className="px-2 py-1.5 bg-[#1c1c1c] border border-[#27272a] text-zinc-300 hover:text-white text-xs transition-colors cursor-pointer"
                 title="Alternar velocidad (0.9x / 0.65x)"
               >
                 <Volume1 className="w-3.5 h-3.5 inline mr-1 text-zinc-400" />
@@ -161,7 +161,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
           </div>
 
           {/* Meaning Block */}
-          <div className="bg-[#14161f] border border-[#27272a] p-4 space-y-1.5">
+          <div className="bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
             <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
               <BookOpen className="w-3.5 h-3.5 text-white" />
               <span>Significado didáctico</span>
@@ -178,7 +178,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
 
           {/* Example Sentence */}
           {word.example && (
-            <div className="bg-[#14161f] border border-[#27272a] p-4 space-y-1.5">
+            <div className="bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
               <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
                 <Quote className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Frase en contexto</span>
@@ -195,25 +195,25 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
           )}
 
           {/* Controls: Weight adjustment & Hide */}
-          <div className="flex items-center justify-between pt-2 border-t border-[#22242c] text-xs">
+          <div className="flex items-center justify-between pt-2 border-t border-[#282828] text-xs">
             <div className="flex items-center gap-2">
               <span className="text-zinc-400 uppercase text-[11px]">Tamaño en nube:</span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onUpdateWeight(word.id, -1)}
                   disabled={word.weight <= 1}
-                  className="p-1 border border-[#27272a] bg-[#181920] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
+                  className="p-1 border border-[#27272a] bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
                   title="Reducir tamaño"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="px-2 py-0.5 border border-[#27272a] bg-[#14161f] text-white font-bold">
+                <span className="px-2 py-0.5 border border-[#27272a] bg-[#181818] text-white font-bold">
                   {word.weight} / 5
                 </span>
                 <button
                   onClick={() => onUpdateWeight(word.id, 1)}
                   disabled={word.weight >= 5}
-                  className="p-1 border border-[#27272a] bg-[#181920] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
+                  className="p-1 border border-[#27272a] bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
                   title="Aumentar tamaño"
                 >
                   <Plus className="w-3.5 h-3.5" />

@@ -121,19 +121,19 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
       <div
         role="region"
         aria-label="Ficha de información de palabra"
-        className="fixed inset-x-2 bottom-2 max-h-[80vh] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[480px] sm:max-h-[82vh] z-50 bg-[#0d0e14] border-2 border-zinc-600 shadow-2xl overflow-hidden flex flex-col transition-all duration-200"
+        className="word-inspector fixed inset-x-2 bottom-2 max-h-[80vh] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[480px] sm:max-h-[82vh] z-50 bg-[#111111] border border-zinc-600 shadow-2xl overflow-hidden flex flex-col transition-all duration-200"
       >
         {/* Mobile swipe/close handle indicator */}
         <div
           onClick={onClose}
-          className="sm:hidden w-full py-1.5 flex justify-center bg-[#101218] cursor-pointer border-b border-[#22242c]"
+          className="sm:hidden w-full py-1.5 flex justify-center bg-[#151515] cursor-pointer border-b border-[#282828]"
           title="Toca para cerrar"
         >
           <div className="w-10 h-1 bg-zinc-600 rounded-full" />
         </div>
 
         {/* Sticky Top Bar with Pagination, Controls, and High-Contrast Close Button */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-[#14161f] border-b border-[#272a36] text-xs font-mono text-zinc-300 shrink-0 select-none">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-[#181818] border-b border-[#303030] text-xs font-mono text-zinc-300 shrink-0 select-none">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-zinc-400 inline-block rounded-full" />
             <span className="font-bold text-white uppercase tracking-wider text-[11px]">
@@ -185,7 +185,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
       {/* Scrollable Body Content */}
       <div className="p-4 sm:p-5 space-y-4 font-sans overflow-y-auto flex-1 overscroll-contain">
         {/* Word Title & Pronunciation Audio */}
-        <div className="flex items-start justify-between gap-3">
+        <div className="inspector-heading flex items-start justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-2 flex-wrap">
               {(() => {
@@ -196,7 +196,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
                   </span>
                 ) : null;
               })()}
-              <h3 className="text-2xl font-bold tracking-tight text-white font-mono uppercase">
+              <h3 className="inspector-title text-2xl font-bold tracking-tight text-white font-mono uppercase">
                 {cleanDisplayWord(word.lemma || word.word)}
               </h3>
             </div>
@@ -227,7 +227,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer border ${
                   word.isFavorite
                     ? 'bg-zinc-950/80 text-zinc-300 border-zinc-500'
-                    : 'bg-[#181920] hover:bg-zinc-800 text-zinc-200 border-[#27272a] hover:border-zinc-500'
+                    : 'bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-200 border-[#27272a] hover:border-zinc-500'
                 }`}
                 title={word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
               >
@@ -261,7 +261,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             <button
               onClick={() => handleSpeakWord(0.7)}
               disabled={isPlayingWord}
-              className="p-1.5 bg-[#181920] border border-[#27272a] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 bg-[#1c1c1c] border border-[#27272a] text-zinc-400 hover:text-white transition-colors cursor-pointer"
               title="Pronunciación lenta (0.7x)"
             >
               <Volume1 className="w-4 h-4" />
@@ -271,14 +271,14 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
 
         {/* English Translation */}
         {word.translationEn && (
-          <div className="text-xs font-mono text-zinc-400 bg-[#12131a] border border-[#22242c] px-3 py-1.5 flex items-center gap-2">
+          <div className="text-xs font-mono text-zinc-400 bg-[#141414] border border-[#282828] px-3 py-1.5 flex items-center gap-2">
             <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Traducción:</span>
             <span className="text-zinc-200 font-sans text-sm">{word.translationEn}</span>
           </div>
         )}
 
         {/* Pedagogical Meaning */}
-        <div className="bg-[#12131a] border border-[#22242c] p-3.5 space-y-1">
+        <div className="bg-[#141414] border border-[#282828] p-3.5 space-y-1">
           <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-mono uppercase tracking-wider font-bold">
             <BookOpen className="w-3.5 h-3.5 text-zinc-400" />
             <span>Definición didáctica</span>
@@ -294,7 +294,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
         )}
 
         {/* Example in Context */}
-        <div className="bg-[#12131a] border border-[#22242c] p-3.5 space-y-2">
+        <div className="bg-[#141414] border border-[#282828] p-3.5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider font-bold">
               Ejemplo en contexto
@@ -356,7 +356,7 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
       </div>
 
       {/* Sticky Bottom Bar with Quick Close Button for mobile ease */}
-      <div className="px-3 sm:px-4 py-2 bg-[#12131a] border-t border-[#22242c] flex items-center justify-between text-xs font-mono text-zinc-400 shrink-0">
+      <div className="px-3 sm:px-4 py-2 bg-[#141414] border-t border-[#282828] flex items-center justify-between text-xs font-mono text-zinc-400 shrink-0">
         <span className="text-[11px] text-zinc-500 hidden sm:inline">Pulsa [Esc] para salir</span>
         <span className="text-[10px] text-zinc-500 sm:hidden">Toca fuera para cerrar</span>
         <button

@@ -73,7 +73,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
   return (
     <div className="bg-[#12141d] border border-[#27272a] p-3.5 space-y-3 font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#22242c] pb-2">
+      <div className="flex items-center justify-between border-b border-[#282828] pb-2">
         <div className="flex items-center gap-1.5 text-zinc-300 font-mono font-bold uppercase tracking-wider text-[11px]">
           <Globe className="w-3.5 h-3.5 text-zinc-400" />
           <span>Países hispanohablantes y variantes</span>
@@ -105,7 +105,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
                 return (
                   <span
                     key={`${country}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#181a24] border border-[#2c2f3d] text-zinc-200 text-xs font-mono"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#202020] border border-[#2c2f3d] text-zinc-200 text-xs font-mono"
                   >
                     {flag && <span>{flag}</span>}
                     <span>{country}</span>
@@ -117,7 +117,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
 
           {/* Regional Variants in other countries */}
           {regionalUsage.variants && regionalUsage.variants.length > 0 ? (
-            <div className="space-y-2 pt-1 border-t border-[#22242c]">
+            <div className="space-y-2 pt-1 border-t border-[#282828]">
               <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
                 <span className="text-zinc-500 font-bold">2.</span>
                 <span>Variantes en otros países hispanohablantes:</span>
@@ -176,7 +176,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
 
           {/* Linguistic explanation */}
           {regionalUsage.explanation && !compact && (
-            <div className="text-[11px] text-zinc-400 font-sans leading-relaxed pt-1.5 border-t border-[#22242c] flex items-start gap-1.5">
+            <div className="text-[11px] text-zinc-400 font-sans leading-relaxed pt-1.5 border-t border-[#282828] flex items-start gap-1.5">
               <Sparkles className="w-3 h-3 text-zinc-400 shrink-0 mt-0.5" />
               <span>{regionalUsage.explanation}</span>
             </div>
