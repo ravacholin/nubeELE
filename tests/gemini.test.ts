@@ -24,6 +24,12 @@ test('validates and generates with available Gemini models when the fixed model 
       for await (const chunk of req) body += chunk;
       const payload = JSON.parse(body);
       payloads.push(payload);
+      if (req.url?.includes('flash-lite:streamGenerateContent')) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        const text = '{"words":[{"word":"descartar","lemma":"descartar"}],invalid';
+        res.end('data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }) + '\n\n');
+        return;
+      }
       if (req.url?.includes('flash-lite:')) {
         res.statusCode = 429;
         res.end(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota reached' } }));
@@ -127,6 +133,17 @@ test('validates and generates with available Gemini models when the fixed model 
     assert.equal(final.type, 'complete');
     assert.equal(partial.data.words[0].id, final.data.words[0].id, 'Word identity survives final metadata');
     assert.equal(final.data.words[0].detailsPending, true);
+    const retryStream = await originalFetch(base + '/api/generate-cloud', {
+      method: 'POST', headers: { ...headers, Accept: 'application/x-ndjson', 'x-gemini-api-key': 'AIzaSy-fast-fixture-stream' },
+      body: JSON.stringify({ prompt: 'astronomía' }),
+    });
+    const retried = (await retryStream.text()).trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(retried.filter(event => event.type === 'reset').length, 2, 'Failed partial output is reset before the fallback');
+    assert.equal(retried.find(event => event.type === 'progress').data.words[0].lemma, 'descartar');
+    assert.equal(retried.at(-1).data.words[0].lemma, 'viaje');
+    assert.equal(retried.at(-1).modelUsed, 'gemini-2.5-flash');
+    assert.notEqual(retried.find(event => event.type === 'progress').data.words[0].id, retried.at(-1).data.words[0].id);
+
 
   } finally {
     globalThis.fetch = originalFetch;
