@@ -15,6 +15,11 @@ test('validates and generates with available Gemini models when the fixed model 
         ? ['gemini-2.5-flash', 'gemini-2.5-flash-lite'] : ['gemini-current-flash'];
       res.end(JSON.stringify({ models: names.map(name => ({ name: `models/${name}`, supportedGenerationMethods: ['generateContent'] })) }));
     } else if (req.url?.includes(':generateContent')) {
+      if (Number(req.headers['x-server-timeout']) < 10) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: { code: 400, message: 'Minimum allowed deadline is 10s.' } }));
+        return;
+      }
       let body = '';
       for await (const chunk of req) body += chunk;
       const payload = JSON.parse(body);

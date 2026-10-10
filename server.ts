@@ -168,7 +168,8 @@ async function generateContentWithCascade(
       contents: configPayload.contents,
       config: {
         abortSignal: signal,
-        httpOptions: { timeout, retryOptions: { attempts: 1 } },
+        // Google requires a server deadline of at least 10s; the AbortSignal still enforces our shorter attempt budget.
+        httpOptions: { timeout: Math.max(10_000, timeout), retryOptions: { attempts: 1 } },
         systemInstruction: configPayload.systemInstruction,
         responseMimeType: configPayload.responseMimeType || 'application/json',
         responseSchema: configPayload.responseSchema,
