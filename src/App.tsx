@@ -1,0 +1,756 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  WordItem,
+  CloudData,
+  LayoutMode,
+} from './types';
+import { PALETTES } from './utils/palettes';
+import { WordCloudCanvas } from './components/WordCloudCanvas';
+import { WordDetailModal } from './components/WordDetailModal';
+import { ExportModal } from './components/ExportModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { getStoredApiKey, getApiHeaders } from './utils/apiKeyStorage';
+import {
+  getSavedWords,
+  isWordSaved,
+  saveWord,
+  removeSavedWord,
+} from './utils/savedWordsStorage';
+import {
+  Search,
+  Plus,
+  Maximize2,
+  Minimize2,
+  Share2,
+  RotateCw,
+  RotateCcw,
+  Eraser,
+  Zap,
+  Flame,
+  Layers,
+  Sparkles,
+  KeyRound,
+  BookmarkCheck,
+  Check,
+} from 'lucide-react';
+
+const SUGGESTED_TEMPLATES = [
+  { label: 'Verduras & Huerto', query: 'verduras y hortalizas', tag: 'A1-A2' },
+  { label: 'Verbos de Cocción', query: 'verbos de coccion y tecnicas culinarias', tag: 'B1' },
+  { label: 'Emociones & Estados', query: 'emociones y sentimientos', tag: 'B1-B2' },
+  { label: 'Ciudad & Barrio', query: 'lugares de la ciudad y el barrio', tag: 'A2' },
+  { label: 'Viajes & Estaciones', query: 'viajes, trenes y aeropuertos', tag: 'B1' },
+  { label: 'Coloquialismos', query: 'expresiones coloquiales y modismos', tag: 'B2-C1' },
+];
+
+export default function App() {
+  const [topicInput, setTopicInput] = useState('');
+  const [currentTopic, setCurrentTopic] = useState('verduras');
+  const [selectedLevel, setSelectedLevel] = useState('Todos');
+
+  const [cloudData, setCloudData] = useState<CloudData | null>(null);
+  const [words, setWords] = useState<WordItem[]>([]);
+  const [previousWords, setPreviousWords] = useState<WordItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Layout & Presentation States (Elegant Dark Brutalist)
+  const layoutMode: LayoutMode = 'floating';
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+
+  // Interactive Exploration Word
+  const [selectedWord, setSelectedWord] = useState<WordItem | null>(null);
+  const [isFullModalOpen, setIsFullModalOpen] = useState(false);
+
+  // Modals & Saved Words
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [hasCustomApiKey, setHasCustomApiKey] = useState(() => !!getStoredApiKey());
+  const [savedWordsList, setSavedWordsList] = useState<WordItem[]>(() => getSavedWords());
+  const [showOnlySaved, setShowOnlySaved] = useState(false);
+  const [saveToast, setSaveToast] = useState<{ text: string; word: string; isSaved: boolean } | null>(null);
+
+  // Listen for local API key and saved words modifications
+  useEffect(() => {
+    const handleKeyChange = () => {
+      setHasCustomApiKey(!!getStoredApiKey());
+    };
+    const handleSavedChange = () => {
+      setSavedWordsList(getSavedWords());
+    };
+    window.addEventListener('gemini-api-key-changed', handleKeyChange);
+    window.addEventListener('nube-saved-words-changed', handleSavedChange);
+    return () => {
+      window.removeEventListener('gemini-api-key-changed', handleKeyChange);
+      window.removeEventListener('nube-saved-words-changed', handleSavedChange);
+    };
+  }, []);
+
+  // Single elegant dark minimalist brutalist palette
+  const activePalette = PALETTES.noche;
+
+  // Fetch or generate word cloud
+  const fetchCloud = useCallback(async (query: string, level = 'Todos') => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    setSelectedWord(null);
+
+    try {
+      const response = await fetch('/api/generate-cloud', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ prompt: query, level, focus: 'general' }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.error || 'Error al generar la nube');
+      }
+
+      const data: CloudData = resData.data;
+      setCloudData(data);
+      setCurrentTopic(query);
+      const enrichedWords = data.words.map((w) => ({
+        ...w,
+        isFavorite: isWordSaved(w.id) || isWordSaved(w.lemma || w.word) || !!w.isFavorite,
+      }));
+      setWords(enrichedWords);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage(err.message || 'No se pudo generar la nube. Intenta de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchCloud('verduras');
+  }, [fetchCloud]);
+
+  // Handle Form Submit
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topicInput.trim()) return;
+    fetchCloud(topicInput.trim(), selectedLevel);
+  };
+
+  // Expand Cloud with more words
+  const handleExpandCloud = async (type: 'more' | 'advanced' | 'verbs' | 'expressions') => {
+    if (isExpanding) return;
+    setIsExpanding(true);
+
+    try {
+      const existingWordNames = words.map((w) => w.lemma || w.word);
+      const res = await fetch('/api/expand-cloud', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          topic: currentTopic,
+          existingWords: existingWordNames,
+          expansionType: type,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && Array.isArray(data.newWords)) {
+        setWords((prev) => [...prev, ...data.newWords]);
+      } else {
+        throw new Error(data.error || 'No se pudieron añadir palabras');
+      }
+    } catch (err: any) {
+      console.warn('Expand error, fallback complementario:', err);
+      const fallbackAdditions: WordItem[] = [
+        { id: `fb_${Date.now()}_1`, word: 'el aderezo', lemma: 'aderezo', article: 'el', category: 'sustantivo', level: 'A2', weight: 3, meaning: 'Salsa o condimento con que se sazona una ensalada o plato.', example: 'Preparamos un aderezo con aceite, vinagre y mostaza.' },
+        { id: `fb_${Date.now()}_2`, word: 'condimentar', lemma: 'condimentar', article: null, category: 'verbo', level: 'B1', weight: 4, meaning: 'Añadir especias a la comida para realzar su sabor.', example: 'Condimenta las verduras con romero y pimienta negra.' },
+        { id: `fb_${Date.now()}_3`, word: 'crujiente', lemma: 'crujiente', article: null, category: 'adjetivo', level: 'A2', weight: 4, meaning: 'Que cruje al masticarlo; textura fresca y apetecible.', example: 'La zanahoria cruda es fresca y crujiente.' },
+      ];
+      setWords((prev) => [...prev, ...fallbackAdditions]);
+    } finally {
+      setIsExpanding(false);
+    }
+  };
+
+  // Next / Previous Word navigation
+  const handleNextWord = () => {
+    if (!words.length) return;
+    if (!selectedWord) {
+      setSelectedWord(words[0]);
+      return;
+    }
+    const idx = words.findIndex((w) => w.id === selectedWord.id);
+    const nextIdx = (idx + 1) % words.length;
+    setSelectedWord(words[nextIdx]);
+  };
+
+  const handlePrevWord = () => {
+    if (!words.length) return;
+    if (!selectedWord) {
+      setSelectedWord(words[words.length - 1]);
+      return;
+    }
+    const idx = words.findIndex((w) => w.id === selectedWord.id);
+    const prevIdx = (idx - 1 + words.length) % words.length;
+    setSelectedWord(words[prevIdx]);
+  };
+
+  const handleUpdateWeight = (id: string, delta: number) => {
+    setWords((prev) =>
+      prev.map((w) =>
+        w.id === id
+          ? { ...w, weight: Math.max(1, Math.min(5, w.weight + delta)) }
+          : w
+      )
+    );
+    if (selectedWord && selectedWord.id === id) {
+      setSelectedWord((prev) =>
+        prev ? { ...prev, weight: Math.max(1, Math.min(5, prev.weight + delta)) } : null
+      );
+    }
+  };
+
+  const handleToggleFavorite = (id: string) => {
+    setWords((prev) => {
+      let toggledWord: WordItem | undefined;
+      const updated = prev.map((w) => {
+        if (w.id === id) {
+          const nextFav = !w.isFavorite;
+          toggledWord = { ...w, isFavorite: nextFav };
+          if (nextFav) {
+            saveWord(toggledWord);
+            setSaveToast({ text: 'Palabra guardada en tu lista', word: w.lemma || w.word, isSaved: true });
+          } else {
+            removeSavedWord(w.id);
+            removeSavedWord(w.lemma || w.word);
+            setSaveToast({ text: 'Palabra eliminada de guardadas', word: w.lemma || w.word, isSaved: false });
+          }
+          return toggledWord;
+        }
+        return w;
+      });
+      setTimeout(() => setSaveToast(null), 2500);
+      return updated;
+    });
+
+    if (selectedWord && selectedWord.id === id) {
+      setSelectedWord((prev) =>
+        prev ? { ...prev, isFavorite: !prev.isFavorite } : null
+      );
+    }
+  };
+
+  const handleHideWord = (id: string) => {
+    setWords((prev) => prev.filter((w) => w.id !== id));
+    if (selectedWord?.id === id) setSelectedWord(null);
+  };
+
+  // Filtered words when viewing only saved words
+  const displayedWords = useMemo(() => {
+    if (!showOnlySaved) return words;
+    const inCloudSaved = words.filter((w) => w.isFavorite);
+    if (inCloudSaved.length > 0) return inCloudSaved;
+    return savedWordsList;
+  }, [showOnlySaved, words, savedWordsList]);
+
+  // Clear Board (Pizarra limpia para la clase)
+  const handleClearBoard = () => {
+    if (words.length === 0) return;
+    setPreviousWords([...words]);
+    setWords([]);
+    setSelectedWord(null);
+    setCloudData((prev) =>
+      prev
+        ? {
+            ...prev,
+            title: 'Pizarra limpia',
+            summary: 'La pizarra está vacía. Añade términos con tu clase o genera un nuevo campo léxico.',
+            words: [],
+          }
+        : {
+            title: 'Pizarra limpia',
+            summary: 'La pizarra está vacía. Añade términos con tu clase o genera un nuevo campo léxico.',
+            suggestedTopics: ['verduras', 'cocinar', 'emociones', 'ciudad'],
+            challenge: 'Añade palabras de clase o genera un tema nuevo.',
+            words: [],
+          }
+    );
+  };
+
+  // Restore cleared board
+  const handleRestoreBoard = () => {
+    if (previousWords.length > 0) {
+      setWords([...previousWords]);
+      setPreviousWords([]);
+    }
+  };
+
+  return (
+    <div className={`min-h-screen flex flex-col font-sans text-[#f4f4f5] transition-colors duration-300 ${activePalette.bgClass} selection:bg-white selection:text-black`}>
+      {/* 1. TOP BAR - Minimalist Brutalist Dark */}
+      <header className="sticky top-0 z-40 bg-[#090a0f]/95 backdrop-blur-md border-b border-[#27272a]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          {/* Zone 1: Minimalist Brutalist Brand */}
+          <div className="flex items-center gap-3">
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                fetchCloud('verduras');
+              }}
+              className="group flex items-center gap-2.5 text-sm tracking-tight text-white hover:text-white"
+              title="Reiniciar con tema por defecto"
+            >
+              <span className="w-5 h-5 bg-white text-black font-black font-mono text-[11px] flex items-center justify-center tracking-tighter">
+                N
+              </span>
+              <span className="font-bold uppercase tracking-wider text-sm font-mono text-zinc-100">
+                NubeELE
+              </span>
+              <span className="hidden sm:inline-block w-px h-3.5 bg-zinc-800" />
+              <span className="hidden sm:inline-block text-[11px] font-mono uppercase tracking-widest text-zinc-400">
+                Léxico interactivo
+              </span>
+            </a>
+          </div>
+
+          {/* Primary Actions (Sharp Brutalist Buttons) */}
+          <div className="flex items-center gap-2">
+            {/* Guardadas filter button */}
+            <button
+              onClick={() => setShowOnlySaved(!showOnlySaved)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                showOnlySaved
+                  ? 'bg-emerald-400 text-black border-emerald-400 font-bold'
+                  : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
+              }`}
+              title="Filtrar palabras guardadas con el icono de +"
+            >
+              <BookmarkCheck className={`w-3.5 h-3.5 ${showOnlySaved ? 'text-black' : 'text-emerald-400'}`} />
+              <span className="hidden sm:inline">Guardadas</span>
+              <span>({savedWordsList.length})</span>
+            </button>
+
+            {/* Clave de API Gemini Gratis / Local */}
+            <button
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                hasCustomApiKey
+                  ? 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-700/80'
+                  : 'bg-[#181920] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
+              }`}
+              title="Instructivo y configuración de clave gratuita de Google Gemini (guardada localmente)"
+            >
+              <KeyRound className={`w-3.5 h-3.5 ${hasCustomApiKey ? 'text-emerald-400' : 'text-zinc-400'}`} />
+              <span className="hidden sm:inline">
+                {hasCustomApiKey ? 'Clave API' : 'Clave Gratis'}
+              </span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  hasCustomApiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+            </button>
+
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="p-1.5 bg-[#181920] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-[#27272a] text-xs transition-colors cursor-pointer"
+              title="Exportar vocabulario para alumnos"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => setIsPresentationMode(!isPresentationMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
+                isPresentationMode
+                  ? 'bg-emerald-400 text-black border-emerald-400 font-bold'
+                  : 'bg-white text-black hover:bg-zinc-200 border-white font-semibold'
+              }`}
+              title="Modo pantalla completa para proyector o Zoom"
+            >
+              {isPresentationMode ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Salir</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Pizarra</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTAINER */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Dynamic Topic Generator Bar - Minimalist Brutalist Hero */}
+        {!isPresentationMode && (
+          <section className="bg-[#101218] border border-[#27272a] p-3.5 sm:p-6 space-y-3 sm:space-y-4">
+            <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-2 pb-1 border-b border-[#1f2128]">
+              <div>
+                {/* Title strictly: "Generador de nubes de palabras" */}
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white font-mono uppercase">
+                  Generador de nubes de palabras
+                </h1>
+                <p className="text-xs text-zinc-400 font-mono mt-1">
+                  Didáctica ELE · Nivel MCER · Fonética · Campos semánticos
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                <span className="w-2 h-2 bg-emerald-400 inline-block animate-pulse" />
+                <span>Interactivo</span>
+              </div>
+            </div>
+
+            {/* Quick Template Chips (Horizontally swipeable on mobile, wrapping on desktop) */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 -mx-1 px-1 sm:flex-wrap">
+              {SUGGESTED_TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.query}
+                  onClick={() => {
+                    setTopicInput(tmpl.query);
+                    fetchCloud(tmpl.query, selectedLevel);
+                  }}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-mono uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
+                    currentTopic === tmpl.query
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-[#14161f] text-zinc-300 border-[#27272a] hover:border-zinc-500 hover:text-white'
+                  }`}
+                >
+                  <span>{tmpl.label}</span>
+                  <span className="text-[10px] text-zinc-400 font-sans opacity-70">[{tmpl.tag}]</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Search and level filter */}
+            <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 sm:pt-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  placeholder="Escribe un tema (ej: verduras, emociones, ciudad...)"
+                  className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-[#14161f] hover:bg-[#181a24] focus:bg-[#14161f] border border-[#27272a] text-sm text-white placeholder:text-zinc-400 focus:outline-hidden focus:border-white transition-all font-mono"
+                />
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+
+              {/* Level Filter */}
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="px-3 py-2 sm:py-2.5 bg-[#14161f] border border-[#27272a] text-xs font-mono uppercase tracking-wider text-zinc-200 focus:outline-hidden focus:border-white cursor-pointer"
+              >
+                <option value="Todos">Niveles: Todos</option>
+                <option value="A1">Nivel A1</option>
+                <option value="A2">Nivel A2</option>
+                <option value="B1">Nivel B1</option>
+                <option value="B2">Nivel B2</option>
+                <option value="C1">Nivel C1</option>
+              </select>
+
+              {/* Generate Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex items-center justify-center gap-2 px-5 sm:px-6 py-2 sm:py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 text-black rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0"
+              >
+                {isLoading ? (
+                  <>
+                    <RotateCw className="w-3.5 h-3.5 animate-spin text-black" />
+                    <span>Generando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
+                    <span>Generar nube</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Didactic API Key Hint Bar */}
+            <div className="pt-2.5 border-t border-[#1f2128] flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${hasCustomApiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                <span className="text-zinc-400 text-[11px] font-sans">
+                  {hasCustomApiKey ? (
+                    <>
+                      <strong className="text-emerald-300 font-mono">Cuota personal activa:</strong> Tu clave Gemini está guardada en este navegador.
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-zinc-300 font-mono">Modo servidor compartido:</strong> Puedes añadir tu clave gratuita de Google para cuota ilimitada sin esperas.
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsApiKeyModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider text-emerald-300 hover:text-white bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800 transition-colors cursor-pointer"
+              >
+                <KeyRound className="w-3 h-3 text-emerald-400" />
+                <span>{hasCustomApiKey ? 'Gestionar o cambiar clave' : 'Instructivo: Clave gratis (1 min) →'}</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Error Notification */}
+        {errorMessage && (
+          <div className="p-4 bg-rose-950/40 border border-rose-800 text-xs font-mono text-rose-300 flex items-center justify-between">
+            <span>{errorMessage}</span>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-white hover:underline uppercase text-[11px] font-bold cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
+
+        {/* Word Cloud Visual Stage Container - Brutalist Frame */}
+        <section className={`bg-[#0d0e14] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
+          isPresentationMode ? 'fixed inset-0 z-50 rounded-none border-none' : ''
+        }`}>
+          {/* Cloud Header / Toolbar */}
+          <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-[#22242c] bg-[#12131a] flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold font-mono uppercase tracking-wide text-white">
+                  {cloudData?.title || 'Nube de palabras'}
+                </h2>
+                <span className="text-xs text-zinc-400 font-mono">
+                  [{words.length}]
+                </span>
+              </div>
+              {cloudData?.summary && (
+                <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1 max-w-xl font-sans">
+                  {cloudData.summary}
+                </p>
+              )}
+            </div>
+
+            {/* Stage controls */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+
+              {/* Borrar pizarra button */}
+              <button
+                onClick={handleClearBoard}
+                disabled={words.length === 0}
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-mono uppercase tracking-wider border transition-all ${
+                  words.length === 0
+                    ? 'opacity-30 cursor-not-allowed bg-[#181920] border-[#27272a] text-zinc-600'
+                    : 'bg-[#181920] hover:bg-rose-950/60 hover:border-rose-700 hover:text-rose-300 border-[#27272a] text-zinc-300 cursor-pointer'
+                }`}
+                title="Borrar la pizarra para dejarla en blanco"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Borrar</span>
+              </button>
+
+              {/* Restaurar pizarra button */}
+              {words.length === 0 && previousWords.length > 0 && (
+                <button
+                  onClick={handleRestoreBoard}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-white text-black border border-white text-xs font-mono uppercase tracking-wider font-bold transition-all cursor-pointer"
+                  title="Restaurar las palabras borradas"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-black" />
+                  <span>Restaurar ({previousWords.length})</span>
+                </button>
+              )}
+
+              {/* Presentation Exit Button if in presentation mode */}
+              {isPresentationMode && (
+                <button
+                  onClick={() => setIsPresentationMode(false)}
+                  className="flex items-center gap-1 px-3 py-1 bg-white text-black text-xs font-mono uppercase font-bold cursor-pointer"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>Salir</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Interactive Word Cloud Visual Canvas */}
+          {showOnlySaved && (
+            <div className="px-4 py-2 bg-emerald-950/70 border-b border-emerald-700/80 flex items-center justify-between text-xs font-mono text-emerald-300">
+              <div className="flex items-center gap-2">
+                <BookmarkCheck className="w-4 h-4 text-emerald-400" />
+                <span>Mostrando palabras guardadas con el icono de + ({displayedWords.length})</span>
+              </div>
+              <button
+                onClick={() => setShowOnlySaved(false)}
+                className="text-emerald-400 hover:text-white underline cursor-pointer text-[11px] uppercase"
+              >
+                Ver toda la nube
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1 relative bg-grid-brutalist min-h-[460px] sm:min-h-[540px]">
+            <WordCloudCanvas
+              words={displayedWords}
+              palette={activePalette}
+              layoutMode={layoutMode}
+              onSelectWord={(w) => setSelectedWord(w)}
+              selectedWord={selectedWord}
+              onCloseSelectedWord={() => setSelectedWord(null)}
+              onPrevWord={handlePrevWord}
+              onNextWord={handleNextWord}
+              onOpenFullDetail={() => setIsFullModalOpen(true)}
+              isPresentationMode={isPresentationMode}
+              onRestoreWords={handleRestoreBoard}
+              hasRestorableWords={previousWords.length > 0}
+              onQuickTopic={(topic) => {
+                setTopicInput(topic);
+                fetchCloud(topic, selectedLevel);
+              }}
+              onToggleFavorite={handleToggleFavorite}
+            />
+          </div>
+
+          {/* Cloud Footer Actions: Expand vocabulary */}
+          {!isPresentationMode && (
+            <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-t border-[#22242c] bg-[#12131a] flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-zinc-400 uppercase tracking-wider text-[11px]">Ampliar:</span>
+                <button
+                  onClick={() => handleExpandCloud('more')}
+                  disabled={isExpanding}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3 text-zinc-400" />
+                  <span>+ Más palabras</span>
+                </button>
+                <button
+                  onClick={() => handleExpandCloud('advanced')}
+                  disabled={isExpanding}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Layers className="w-3 h-3 text-zinc-400" />
+                  <span>+ Avanzado (B2-C1)</span>
+                </button>
+                <button
+                  onClick={() => handleExpandCloud('verbs')}
+                  disabled={isExpanding}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Flame className="w-3 h-3 text-zinc-400" />
+                  <span>+ Verbos</span>
+                </button>
+                <button
+                  onClick={() => handleExpandCloud('expressions')}
+                  disabled={isExpanding}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-[#181920] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Zap className="w-3 h-3 text-zinc-400" />
+                  <span>+ Expresiones</span>
+                </button>
+              </div>
+
+              {/* Related Topic tags */}
+              {cloudData?.suggestedTopics && cloudData.suggestedTopics.length > 0 && (
+                <div className="flex items-center gap-1.5 text-zinc-400 text-[11px]">
+                  <span className="uppercase tracking-wider">Temas:</span>
+                  <div className="flex items-center gap-1.5">
+                    {cloudData.suggestedTopics.slice(0, 4).map((topic, i) => (
+                      <React.Fragment key={topic}>
+                        <button
+                          onClick={() => {
+                            setTopicInput(topic);
+                            fetchCloud(topic, selectedLevel);
+                          }}
+                          className="hover:text-white uppercase transition-colors cursor-pointer underline underline-offset-4 decoration-zinc-700 hover:decoration-white"
+                        >
+                          {topic}
+                        </button>
+                        {i < 3 && <span className="text-zinc-600">/</span>}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+      </main>
+
+      {/* FOOTER - Minimalist Brutalist */}
+      <footer className="mt-auto border-t border-[#22242c] bg-[#090a0f] py-4 text-xs font-mono text-zinc-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white uppercase tracking-wider">NubeELE</span>
+            <span className="text-zinc-700">|</span>
+            <span>Generador de nubes de palabras didácticas</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className="text-zinc-400 hover:text-white flex items-center gap-1.5 hover:underline cursor-pointer transition-colors"
+              title="Instructivo de clave gratuita y guardado local"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Clave API Gemini (Gratis & Local)</span>
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* Full Word Detail Drawer / Modal */}
+      {isFullModalOpen && selectedWord && (
+        <WordDetailModal
+          word={selectedWord}
+          onClose={() => setIsFullModalOpen(false)}
+          onUpdateWeight={handleUpdateWeight}
+          onToggleFavorite={handleToggleFavorite}
+          onHideWord={handleHideWord}
+        />
+      )}
+
+      {/* Export Vocabulary Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title={cloudData?.title || currentTopic}
+        words={showOnlySaved ? displayedWords : words}
+      />
+
+      {/* Gemini API Key Instructional & Management Modal */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onKeyChange={(hasKey) => setHasCustomApiKey(hasKey)}
+      />
+
+      {/* Floating Save Toast Notification */}
+      {saveToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#0f1118] border-2 border-emerald-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
+        >
+          {saveToast.isSaved ? (
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <BookmarkCheck className="w-4 h-4 text-zinc-400 shrink-0" />
+          )}
+          <span>
+            {saveToast.text}: <strong className="text-emerald-300 uppercase">«{saveToast.word}»</strong>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}

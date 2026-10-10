@@ -1,0 +1,7 @@
+{
+  "name": "NubeELE - Nubes de Palabras Inteligentes para Clases de Español",
+  "description": "Herramienta interactiva y minimalista para profesores y estudiantes de español. Genera nubes de palabras dinámicas con IA, ejercicios didácticos, niveles MCER, pronunciación y actividades interactivas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
