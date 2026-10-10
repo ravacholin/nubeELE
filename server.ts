@@ -1222,4 +1222,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Vercel imports this app as a request handler; only local execution starts a listener.
+export default app;
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  startServer();
+}
