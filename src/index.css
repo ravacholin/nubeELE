@@ -179,3 +179,48 @@ button:disabled { cursor: not-allowed; }
 .regional-disclosure > summary::after { content: '+'; font-size: 18px; }
 .regional-disclosure[open] > summary::after { content: '−'; }
 .regional-disclosure > div { margin-bottom: 16px; }
+
+/* One typographic vocabulary for both word sheets. */
+.lexical-sheet { background: #111; color: #edece7; border-color: #3a3a37; font-family: var(--font-sans); box-shadow: 0 18px 80px #0008; }
+.lexical-sheet .lexical-toolbar { background: transparent; padding: 12px 20px; gap: 12px; border-color: #303030; }
+.lexical-toolbar > div { min-width: 0; }
+.lexical-sheet .lexical-toolbar button { background: transparent; border-color: transparent; color: #b6b6b0; min-height: 40px; min-width: 36px; padding: 8px; box-shadow: none; }
+.lexical-sheet .lexical-toolbar button:hover { color: #fff; background: #242424; }
+.lexical-toolbar button[title="Cerrar ficha (Esc)"] span { display: none; }
+.lexical-sheet .lexical-body { padding: 26px; min-height: 0; overscroll-behavior: contain; }
+.lexical-sheet .lexical-title { font-family: var(--font-sans); font-size: clamp(32px, 4vw, 44px); line-height: 1.08; letter-spacing: -.055em; font-weight: 500; text-transform: none; overflow-wrap: anywhere; min-width: 0; color: #edece7; }
+.lexical-sheet .inspector-heading { display: flex; flex-direction: column; gap: 20px; }
+.lexical-sheet .lexical-meta { flex-wrap: wrap; gap: 6px; font-family: var(--font-mono); font-size: 10px; font-weight: 400; line-height: 1.6; color: #aaa9a2; }
+.lexical-sheet .lexical-meta > span { font-weight: 400; }
+.lexical-actions { justify-content: flex-start; }
+.lexical-sheet button { border-radius: 0; min-height: 40px; }
+.lexical-sheet .lexical-actions button { min-width: 40px; padding: 10px 13px; font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: .04em; }
+.lexical-sheet .lexical-translation { border: 0; background: transparent; padding: 0; gap: 12px; }
+.lexical-sheet .lexical-section { background: transparent; border: 0; border-top: 1px solid #303030; padding: 20px 0 0; margin-top: 24px; }
+.lexical-section > div:first-child { font-family: var(--font-mono); font-size: 10px; font-weight: 400; letter-spacing: .1em; color: #aaa9a2; }
+.lexical-meaning > div:first-child > svg { display: none; }
+.lexical-sheet .lexical-meaning > p { font-size: 16px; line-height: 1.75; margin-top: 10px; color: #edece7; }
+.lexical-sheet .lexical-example > p { border: 0; padding: 0; font-size: 16px; line-height: 1.75; margin-top: 8px; color: #c9c8c1; }
+.lexical-sheet .regional-disclosure { border-color: #303030; }
+.lexical-sheet .regional-content { background: transparent; padding: 4px 0 12px; border: 0; }
+.lexical-sheet .regional-content > div:first-child { display: none; }
+.lexical-expanded { max-width: 620px; }
+.lexical-expanded .lexical-toolbar { flex-wrap: wrap; }
+.lexical-expanded .lexical-body > div:first-child { flex-direction: column; align-items: flex-start; gap: 20px; }
+.lexical-expanded .lexical-adjustments { gap: 16px; flex-wrap: wrap; padding-top: 20px; }
+.lexical-adjustments > div { flex-wrap: wrap; }
+.lexical-adjustments button { min-width: 40px; }
+@media (max-width: 639px) {
+  .lexical-sheet.word-inspector { max-height: 88dvh; }
+  .lexical-sheet .lexical-toolbar { padding: 10px 16px; gap: 8px; }
+  .lexical-sheet .lexical-toolbar > div:last-child { gap: 0; }
+  .lexical-sheet .lexical-toolbar button { min-height: 44px; min-width: 38px; }
+  .lexical-sheet .lexical-body { padding: 22px 20px max(24px, env(safe-area-inset-bottom)); }
+  .lexical-sheet .lexical-title { font-size: 36px; }
+  .lexical-sheet .lexical-actions button { min-height: 44px; }
+  .lexical-overlay { padding: 0; align-items: flex-end; }
+  .lexical-expanded { max-height: 94dvh; border-width: 1px 0 0; }
+}
+.lexical-sheet .lexical-collocation { font-family: var(--font-mono); font-size: 11px; line-height: 1.6; padding-top: 10px; margin-top: 12px; flex-wrap: wrap; }
+.lexical-expanded .lexical-example > div:first-child > svg { display: none; }
+.lexical-sheet .lexical-adjustments { font-family: var(--font-mono); font-size: 11px; }

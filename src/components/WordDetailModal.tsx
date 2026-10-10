@@ -57,16 +57,17 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity"
+      aria-label="Ficha completa de palabra"
+      className="lexical-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono flex flex-col max-h-[90vh]"
+        className="lexical-sheet lexical-expanded relative w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Ribbon */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#282828] bg-[#141414] shrink-0">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
+        <div className="lexical-toolbar flex items-center justify-between px-5 py-3 border-b border-[#282828] bg-[#141414] shrink-0">
+          <div className="lexical-meta flex items-center gap-2 text-xs text-zinc-400">
             <span className="uppercase text-white font-bold">{word.category}</span>
             {word.subcategory && (
               <>
@@ -118,10 +119,10 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
         </div>
 
         {/* Word Title & Pronunciation */}
-        <div className="p-6 space-y-5 overflow-y-auto flex-1">
+        <div className="lexical-body p-6 space-y-5 overflow-y-auto flex-1">
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3">
             <div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 min-w-0">
                 {(() => {
                   const validArt = getValidArticle(word.category, word.article);
                   return validArt ? (
@@ -130,7 +131,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
                     </span>
                   ) : null;
                 })()}
-                <h2 className="text-3xl font-black uppercase tracking-tight text-white font-mono">
+                <h2 className="lexical-title text-3xl font-black uppercase tracking-tight text-white font-mono">
                   {cleanDisplayWord(word.lemma || word.word)}
                 </h2>
               </div>
@@ -142,7 +143,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
             </div>
 
             {/* Pronunciation triggers */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="lexical-actions flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => handleSpeak(speechRate)}
                 disabled={isPlaying}
@@ -166,42 +167,43 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
           {word.detailsPending ? <WordDetailsStatus state={detailState} /> : <>
           <WordLexicalExtras word={word} />
           {/* Meaning Block */}
-          <div className="bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
+          <div className="lexical-section lexical-meaning bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
             <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
               <BookOpen className="w-3.5 h-3.5 text-white" />
-              <span>Significado didáctico</span>
+              <span>Significado</span>
             </div>
             <p className="text-zinc-200 text-sm leading-relaxed font-sans">
               {word.meaning}
             </p>
           </div>
 
-          {/* Variantes Regionales en Países Hispanohablantes (Sustantivos) */}
-          {word.category === 'sustantivo' && (
-            <RegionalVariantsSection word={word} />
-          )}
-
           {/* Example Sentence */}
           {word.example && (
-            <div className="bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
+            <div className="lexical-section lexical-example bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
               <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
                 <Quote className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Frase en contexto</span>
+                <span>En contexto</span>
               </div>
               <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-zinc-400 pl-2.5">
                 "{word.example}"
               </p>
               {word.collocation && (
-                <p className="text-xs text-zinc-400 pt-2 border-t border-zinc-800">
+                <p className="lexical-collocation text-xs text-zinc-400 pt-2 border-t border-zinc-800">
                   <span className="text-zinc-500 uppercase">Colocación:</span> {word.collocation}
                 </p>
               )}
             </div>
           )}
 
+          {word.category === 'sustantivo' && (
+            <details className="regional-disclosure">
+              <summary>Variantes regionales</summary>
+              <RegionalVariantsSection word={word} />
+            </details>
+          )}
           </>}
           {/* Controls: Weight adjustment & Hide */}
-          <div className="flex items-center justify-between pt-2 border-t border-[#282828] text-xs">
+          <div className="lexical-adjustments flex items-center justify-between pt-2 border-t border-[#282828] text-xs">
             <div className="flex items-center gap-2">
               <span className="text-zinc-400 uppercase text-[11px]">Tamaño en nube:</span>
               <div className="flex items-center gap-1">

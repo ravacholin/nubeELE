@@ -71,7 +71,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
   const nounName = cleanDisplayWord(word.lemma || word.word);
 
   return (
-    <div className="bg-[#12141d] border border-[#27272a] p-3.5 space-y-3 font-sans">
+    <div className="regional-content bg-[#111111] border border-[#27272a] p-3.5 space-y-3 font-sans">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#282828] pb-2">
         <div className="flex items-center gap-1.5 text-zinc-300 font-mono font-bold uppercase tracking-wider text-[11px]">
@@ -105,7 +105,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
                 return (
                   <span
                     key={`${country}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#202020] border border-[#2c2f3d] text-zinc-200 text-xs font-mono"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#202020] border border-[#303030] text-zinc-200 text-xs font-mono"
                   >
                     {flag && <span>{flag}</span>}
                     <span>{country}</span>
@@ -127,7 +127,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
                 {regionalUsage.variants.map((v, i) => (
                   <div
                     key={i}
-                    className="bg-[#0b0c10] border border-[#2c2f3d] p-2.5 text-xs space-y-1.5 transition-colors hover:border-zinc-600"
+                    className="bg-[#111111] border border-[#303030] p-2.5 text-xs space-y-1.5 transition-colors hover:border-zinc-600"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-mono text-[11px]">
@@ -140,7 +140,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
                       <button
                         onClick={() => handleSpeakVariant(v.variant)}
                         disabled={speakingVariant === v.variant}
-                        className="flex items-center gap-1 px-1.5 py-0.5 bg-[#1f2230] hover:bg-zinc-700 text-zinc-200 text-[10px] font-mono border border-zinc-700 cursor-pointer transition-colors"
+                        className="flex items-center gap-1 px-1.5 py-0.5 bg-[#1c1c1c] hover:bg-zinc-700 text-zinc-200 text-[10px] font-mono border border-zinc-700 cursor-pointer transition-colors"
                         title={`Escuchar variante: ${v.variant}`}
                       >
                         <Volume2 className="w-3 h-3 text-zinc-400" />
@@ -164,7 +164,7 @@ export const RegionalVariantsSection: React.FC<RegionalVariantsSectionProps> = (
               </div>
             </div>
           ) : (
-            <div className="bg-[#0b0c10] border border-[#27272a] p-2.5 text-xs text-zinc-300 font-sans flex items-start gap-2">
+            <div className="bg-[#111111] border border-[#27272a] p-2.5 text-xs text-zinc-300 font-sans flex items-start gap-2">
               <Info className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
               <p className="text-[11px] leading-relaxed">
                 Término <strong className="text-white">panhispánico uniforme</strong>: se utiliza
