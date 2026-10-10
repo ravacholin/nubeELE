@@ -160,7 +160,9 @@ async function generateContentWithCascade(
   const availableModels = await getAvailableTextModels(activeClient);
   let cooldowns = textCooldowns.get(activeClient);
   if (!cooldowns) { cooldowns = new Map(); textCooldowns.set(activeClient, cooldowns); }
-  return runFastCascade(availableModels, async (model, signal, timeout) => {
+  let lastError: any;
+  const result = await runFastCascade(availableModels, async (model, signal, timeout) => {
+    try {
     const response = await activeClient.models.generateContent({
       model,
       contents: configPayload.contents,
@@ -177,7 +179,10 @@ async function generateContentWithCascade(
     const text = response.text || '';
     if ((configPayload.responseMimeType || 'application/json') === 'application/json') JSON.parse(text);
     return text;
+    } catch (error) { lastError = error; throw error; }
   }, cooldowns);
+  if (!result && configPayload.fastVocabulary && lastError) throw lastError;
+  return result;
 }
 
 /**
@@ -510,6 +515,16 @@ function sanitizeWordObject(w: any, index: number) {
 }
 
 // Endpoint: Generate Word Cloud
+function generationFailure(res: express.Response, error?: any, hasCustomKey = false) {
+  const status = Number(error?.status || error?.code) || null;
+  const message = status === 429 ? 'Google indica que se agotó la cuota disponible. Esperá un momento o revisá la cuota de tu API key.'
+    : status === 401 || status === 403 ? 'Google no permite generar con esta API key. Revisá sus permisos y restricciones.'
+    : 'Gemini no pudo responder ahora. Podés volver a intentar en unos segundos.';
+  return res.status(503).json({ success: false, error: message, providerStatus: status,
+    ...(hasCustomKey && error?.message ? { providerMessage: String(error.message).replace(/AIza[\w-]+/g, '[redacted]').slice(0, 1200) } : {}),
+  });
+}
+
 app.post('/api/word-details', async (req, res) => {
   const { word, topic = '', level = 'A2', category = 'sustantivo' } = req.body;
   if (typeof word !== 'string' || !word.trim() || word.length > 200) {
@@ -539,7 +554,7 @@ app.post('/api/word-details', async (req, res) => {
       const data = Object.fromEntries(['meaning', 'translationEn', 'example', 'collocation', 'pronunciationHint'].map(key => [key, typeof parsed[key] === 'string' ? parsed[key] : '']));
       return res.json({ success: true, data: { ...data, synonyms: Array.isArray(parsed.synonyms) ? parsed.synonyms.filter((value: unknown) => typeof value === 'string').slice(0, 3) : [] }, source: 'gemini', modelUsed: result.modelUsed });
     }
-  } catch { /* Preserve the usable cloud while allowing the detail request to retry. */ }
+  } catch (error) { return generationFailure(res, error, !!req.headers['x-gemini-api-key']); }
   return res.status(503).json({ success: false, error: 'No se pudo completar esta ficha ahora. Podés reintentar.' });
 });
 
@@ -613,7 +628,7 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
           return res.json({ success: true, data: parsed, source: 'gemini', modelUsed: cascadeRes.modelUsed });
         }
       } catch (geminiError: any) {
-        console.log('[Gemini] No se pudo completar la nube en este intento.');
+        return generationFailure(res, geminiError, !!userApiKey);
       }
     }
 
