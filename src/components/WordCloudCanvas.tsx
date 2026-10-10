@@ -105,9 +105,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   nodesRef.current = nodes;
 
   // Mobile visual display mode: 'canvas' (floating/spiral physics) or 'mosaico' (flow tag cloud cluster)
-  const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches ? 'mosaico' : 'canvas'
-  );
+  const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>('canvas');
 
   // Measure container dimensions (accurately respect mobile screen width)
   useEffect(() => {
