@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import { createHash } from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -34,12 +35,18 @@ if (apiKey) {
  * Returns a GoogleGenAI client using either the user's custom API key (from header)
  * or falling back to the system's default GEMINI_API_KEY.
  */
+const clients = new Map<string, { client: GoogleGenAI; expires: number }>();
+const modelLists = new WeakMap<GoogleGenAI, { expires: number; promise: Promise<string[]> }>();
+
 function getGenAIClient(customKey?: string | null): GoogleGenAI | null {
   const effectiveKey = (customKey && typeof customKey === 'string' && customKey.trim().length > 0)
     ? customKey.trim()
     : apiKey;
   if (!effectiveKey) return null;
-  return new GoogleGenAI({
+  const fingerprint = createHash('sha256').update(effectiveKey).digest('hex');
+  const cached = clients.get(fingerprint);
+  if (cached && cached.expires > Date.now()) return cached.client;
+  const client = new GoogleGenAI({
     apiKey: effectiveKey,
     httpOptions: {
       headers: {
@@ -47,6 +54,10 @@ function getGenAIClient(customKey?: string | null): GoogleGenAI | null {
       },
     },
   });
+  clients.delete(fingerprint);
+  if (clients.size >= 64) clients.delete(clients.keys().next().value!);
+  clients.set(fingerprint, { client, expires: Date.now() + 10 * 60_000 });
+  return client;
 }
 
 /**
@@ -68,7 +79,20 @@ function markModelCooldown(model: string, durationMs: number = 60 * 60 * 1000) {
   modelCooldownMap.set(model, Date.now() + durationMs);
 }
 
-async function getAvailableTextModels(client: GoogleGenAI): Promise<string[]> {
+async function getAvailableTextModels(client: GoogleGenAI, refresh = false): Promise<string[]> {
+  const cached = modelLists.get(client);
+  if (!refresh && cached && cached.expires > Date.now()) return cached.promise;
+  const entry = { expires: Date.now() + 5 * 60_000, promise: listTextModels(client) };
+  modelLists.set(client, entry);
+  try {
+    return await entry.promise;
+  } catch (error) {
+    if (modelLists.get(client) === entry) modelLists.delete(client);
+    throw error;
+  }
+}
+
+async function listTextModels(client: GoogleGenAI): Promise<string[]> {
   const pager = await client.models.list({ config: { pageSize: 100 } });
   const names: string[] = [];
   for await (const model of pager) {
@@ -122,6 +146,7 @@ async function generateContentWithCascade(
     systemInstruction?: string;
     responseSchema?: any;
     responseMimeType?: string;
+    fastVocabulary?: boolean;
   },
   customClient?: GoogleGenAI | null
 ): Promise<{ text: string; modelUsed: string } | null> {
@@ -141,6 +166,9 @@ async function generateContentWithCascade(
           systemInstruction: configPayload.systemInstruction,
           responseMimeType: configPayload.responseMimeType || 'application/json',
           responseSchema: configPayload.responseSchema,
+          // Vocabulary extraction needs no reasoning phase. Other models retain their defaults.
+          ...(configPayload.fastVocabulary && /^gemini-2\.5-flash(?:-lite)?$/.test(model)
+            ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         },
       });
 
@@ -153,13 +181,15 @@ async function generateContentWithCascade(
       const isQuota = isTransientOrDemandError(err);
       if (isQuota) {
         console.log(`[Gemini Cascade] Modelo '${model}' pausado por cuota o alta demanda. Conmutando al siguiente modelo...`);
-        await new Promise((resolve) => setTimeout(resolve, 200));
+
       } else {
+        if (String(err.status || err.code) === '404') modelLists.delete(activeClient);
         console.log(`[Gemini Cascade] Modelo '${model}' no disponible. Conmutando...`);
       }
     }
   }
 
+  modelLists.delete(activeClient);
   console.log('[Gemini Cascade] Todos los modelos de IA en pausa. Activando motor léxico ELE de respaldo garantizado.');
   return null;
 }
@@ -531,7 +561,7 @@ Para cada palabra incluye:
 - 'collocation': colocación habitual o combinación frecuente en español (ej: 'sofreír a fuego lento')
 - 'pronunciationHint': guía de acentuación fonética o apunte de pronunciación útil para estudiantes
 
-Genera entre 14 y 22 palabras bien balanceadas.
+Genera 16 palabras bien balanceadas. Usa definiciones de una oración breve, ejemplos naturales de hasta 12 palabras y apuntes de pronunciación concisos. Mantén todos los campos solicitados.
 Además, genera:
 - 'title': Título pedagógico y elegante en español
 - 'summary': Resumen de 1-2 oraciones del objetivo léxico de esta nube
@@ -548,6 +578,7 @@ Genera una nube de palabras completa y enriquecida en formato JSON.`;
           {
             contents: userMessage,
             systemInstruction,
+            fastVocabulary: true,
             responseSchema: {
               type: Type.OBJECT,
               properties: {
@@ -835,17 +866,9 @@ app.post('/api/validate-key', async (req, res) => {
       });
     }
 
-    const testClient = new GoogleGenAI({
-      apiKey: cleanKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-
-    // Authenticate without requiring one fixed model or consuming generation quota.
-    const models = await getAvailableTextModels(testClient);
+    const testClient = getGenAIClient(cleanKey)!;
+    // Always authenticate a validation request with Google; its fresh list warms generation.
+    const models = await getAvailableTextModels(testClient, true);
     if (!models.length) {
       return res.status(400).json({
         success: false,

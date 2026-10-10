@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { requestCloud } from './utils/cloudRequests';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   WordItem,
   CloudData,
@@ -44,6 +45,7 @@ const SUGGESTED_TEMPLATES = [
 ];
 
 export default function App() {
+  const cloudRequestId = useRef(0);
   const [topicInput, setTopicInput] = useState('');
   const [currentTopic, setCurrentTopic] = useState('verduras');
   const [selectedLevel, setSelectedLevel] = useState('Todos');
@@ -92,23 +94,14 @@ export default function App() {
 
   // Fetch or generate word cloud
   const fetchCloud = useCallback(async (query: string, level = 'Todos') => {
+    const requestId = ++cloudRequestId.current;
     setIsLoading(true);
     setErrorMessage(null);
     setSelectedWord(null);
 
     try {
-      const response = await fetch('/api/generate-cloud', {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify({ prompt: query, level, focus: 'general' }),
-      });
-
-      const resData = await response.json();
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.error || 'Error al generar la nube');
-      }
-
-      const data: CloudData = resData.data;
+      const data = await requestCloud(query, level, getApiHeaders());
+      if (requestId !== cloudRequestId.current) return;
       setCloudData(data);
       setCurrentTopic(query);
       const enrichedWords = data.words.map((w) => ({
@@ -117,10 +110,11 @@ export default function App() {
       }));
       setWords(enrichedWords);
     } catch (err: any) {
+      if (requestId !== cloudRequestId.current) return;
       console.error(err);
       setErrorMessage(err.message || 'No se pudo generar la nube. Intenta de nuevo.');
     } finally {
-      setIsLoading(false);
+      if (requestId === cloudRequestId.current) setIsLoading(false);
     }
   }, []);
 
