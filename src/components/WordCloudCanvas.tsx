@@ -99,14 +99,16 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         const isMobileScreen = clientWidth > 0 && clientWidth < 640;
         setDimensions({
           width: Math.max(clientWidth || 360, 280),
-          height: isPresentationMode ? Math.max(window.innerHeight - 96, 480) : isMobileScreen ? 480 : 600,
+          height: isPresentationMode ? Math.max(window.innerHeight - 96, 480) : isMobileScreen ? 440 : 520,
         });
       }
     };
 
     updateSize();
+    let active = true;
+    document.fonts.ready.then(() => { if (active) updateSize(); });
     window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    return () => { active = false; window.removeEventListener('resize', updateSize); };
   }, [isPresentationMode, words.length, mobileViewStyle]);
 
   // Prefetch audio in background whenever words update
@@ -131,11 +133,11 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       if (isMobile) {
         // Clear, readable, perfectly proportioned scale for mobile phones (320px - 480px)
         switch (weight) {
-          case 5: return 20;
-          case 4: return 17;
-          case 3: return 15;
-          case 2: return 13;
-          case 1: default: return 12;
+          case 5: return 24;
+          case 4: return 21;
+          case 3: return 18;
+          case 2: return 16;
+          case 1: default: return 14;
         }
       }
       // Desktop standard
@@ -156,11 +158,14 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       const displayWord = cleanDisplayWord(word.lemma || word.word);
       const article = getValidArticle(word.category, word.article);
       const isMobile = dimensions.width < 640;
-      // Match the fixed tag box: monospace text, smaller article and horizontal padding.
-      // Actions live outside the box so hovering never changes the cloud layout.
-      const wordWidth = displayWord.length * fontSize * 0.61;
-      const articleWidth = article ? article.length * fontSize * 0.62 * 0.61 + 6 : 0;
-      const estimatedWidth = Math.ceil(wordWidth + articleWidth + (isMobile ? 14 : 22));
+      // Measure the same font used by the tags so larger mobile type still fits.
+      const context = document.createElement('canvas').getContext('2d');
+      const family = getComputedStyle(document.body).fontFamily;
+      if (context) context.font = `600 ${fontSize}px ${family}`;
+      const wordWidth = context?.measureText(displayWord).width ?? displayWord.length * fontSize * 0.61;
+      if (context) context.font = `400 ${fontSize * 0.62}px ${family}`;
+      const articleWidth = article ? (context?.measureText(article).width ?? article.length * fontSize * 0.62) + 6 : 0;
+      const estimatedWidth = Math.ceil(wordWidth + articleWidth + 22);
       const estimatedHeight = Math.max(44, Math.ceil(fontSize + 20));
 
       return { estimatedWidth, estimatedHeight };
@@ -427,6 +432,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent, node: PhysicsNode) => {
+    // Suppress the synthetic click: the tap is handled here exactly once.
+    e.preventDefault();
     if (touchStartPosRef.current && e.changedTouches.length > 0) {
       const touch = e.changedTouches[0];
       const dist = Math.hypot(
@@ -909,7 +916,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         isPresentationMode ? 'h-full min-h-[640px]' : 'min-h-[480px] md:min-h-[600px]'
       }`}
       style={{
-        minHeight: Math.max(layoutHeight, isPresentationMode ? 640 : dimensions.width < 640 ? 480 : 600),
+        minHeight: Math.max(layoutHeight, isPresentationMode ? 640 : dimensions.width < 640 ? 440 : 520),
         cursor: draggingNodeRef.current ? 'grabbing' : 'default',
         backgroundImage: `radial-gradient(#242424 0.7px, transparent 0.7px)`,
         backgroundSize: '32px 32px',
@@ -971,14 +978,14 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             <button
               type="button"
               aria-label={`Ver ficha: ${cleanDisplayWord(node.word.lemma || node.word.word)}`}
-              className={`cloud-tag w-full h-full flex items-center justify-center gap-1.5 font-mono font-bold border cursor-pointer ${
+              className={`cloud-tag w-full h-full flex items-center justify-center gap-1.5 font-sans font-semibold border cursor-pointer ${
                 isSelected ? 'is-selected' : isPlaying ? 'is-playing' : ''
               }`}
             >
               {validArt && <span className="text-[0.62em] font-normal opacity-60">{validArt}</span>}
-              <span className="uppercase whitespace-nowrap">{cleanDisplayWord(node.word.lemma || node.word.word)}</span>
+              <span className="whitespace-nowrap">{cleanDisplayWord(node.word.lemma || node.word.word)}</span>
             </button>
-            <div className="tag-actions pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto hidden sm:flex absolute right-0 -bottom-8 z-30 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 bg-[#161616] border border-zinc-700">
+            <div onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()} className="tag-actions pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto hidden sm:flex absolute right-0 -bottom-8 z-30 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 bg-[#161616] border border-zinc-700">
               <button
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(node.word.id); }}

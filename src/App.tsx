@@ -436,11 +436,12 @@ export default function App() {
           <section className="compose-panel">
             <div className="intro-heading">
               <div>
+                <p className="intro-eyebrow">UN ESPACIO PARA EL VOCABULARIO</p>
                 <h1 className="intro-title">
-                  Nubes de palabras.
+                  El español, en palabras.
                 </h1>
                 <p className="intro-description">
-                  Español para explorar, escuchar y enseñar.
+                  Explorá, escuchá y enseñá español.
                 </p>
               </div>
 
@@ -538,7 +539,7 @@ export default function App() {
         )}
 
         {/* Word Cloud Visual Stage Container - Brutalist Frame */}
-        <section className={`cloud-stage bg-[#111111] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
+        <section aria-label="Nube de palabras interactiva" className={`cloud-stage bg-[#111111] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
           isPresentationMode ? 'presentation-stage fixed inset-0 z-50 rounded-none border-none' : ''
         }`}>
           {/* Cloud Header / Toolbar */}
@@ -548,7 +549,7 @@ export default function App() {
                 <h2 className="cloud-title text-white">
                   {cloudData?.title || 'Nube de palabras'}
                 </h2>
-                <span className="cloud-count text-xs text-zinc-400 font-mono">
+                <span aria-label={`${words.length} palabras`} className="cloud-count text-xs text-zinc-400 font-mono">
                   {String(words.length).padStart(2, '0')}
                 </span>
               </div>

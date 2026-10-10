@@ -295,11 +295,6 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
           </p>
         </div>
 
-        {/* Regional Pan-Hispanic Dialectal Variants (Only for nouns) */}
-        {word.category === 'sustantivo' && (
-          <RegionalVariantsSection word={word} />
-        )}
-
         {/* Example in Context */}
         <div className="bg-[#141414] border border-[#282828] p-3.5 space-y-2">
           <div className="flex items-center justify-between">
@@ -331,6 +326,13 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             </div>
           )}
         </div>
+
+        {word.category === 'sustantivo' && (
+          <details className="regional-disclosure">
+            <summary>Variantes regionales</summary>
+            <RegionalVariantsSection word={word} />
+          </details>
+        )}
 
         {/* Action button to generate an extra sentence */}
         <div className="flex items-center justify-between pt-1 font-mono">

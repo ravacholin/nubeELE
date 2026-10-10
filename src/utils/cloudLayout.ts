@@ -4,8 +4,8 @@ export interface CloudPosition { x: number; y: number }
 /** Center-out tag packing with enough vertical space for every word. */
 export function packCloudBoxes(boxes: CloudBox[], width: number, initialHeight: number, seed = 0) {
   const margin = width < 640 ? 8 : 20;
-  const gapX = 16;
-  const gapY = 12;
+  const gapX = width < 640 ? 12 : 16;
+  const gapY = width < 640 ? 8 : 12;
   if (boxes.some(box => box.width > width - margin * 2)) {
     throw new Error('Cloud tags must fit within the canvas width');
   }
