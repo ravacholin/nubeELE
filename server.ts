@@ -50,35 +50,41 @@ function getGenAIClient(customKey?: string | null): GoogleGenAI | null {
 }
 
 /**
- * Free-tier supported Gemini models cascade for high-availability resilience.
- * When primary models face high demand (503) or rate limits (429), the cascade falls back smoothly.
+ * Prefer lightweight text models, but only call names advertised by Google for this key.
  */
-const FREE_MODELS_CASCADE = [
+const PREFERRED_TEXT_MODELS = [
   'gemini-2.5-flash',      // Primary reliable stable flash model
   'gemini-2.5-flash-lite', // Lightweight, fast with separate quota
-  'gemini-3.1-flash-lite', // Next-gen flash-lite preview
-  'gemini-3.8-flash',      // Flash model
-  'gemini-flash-latest',   // Universal alias fallback
+  'gemini-3-flash-preview',
+  'gemini-flash-latest',
 ];
 
-// Circuit breaker to avoid calling models with known quota exhaustion
+// Speech generation uses its own model cooldowns.
 const modelCooldownMap = new Map<string, number>();
-
-// Pre-emptively cool down gemini-3.8-flash if its 20-request daily free limit was triggered
-modelCooldownMap.set('gemini-3.8-flash', Date.now() + 4 * 60 * 60 * 1000);
-
 function isModelInCooldown(model: string): boolean {
-  const expiry = modelCooldownMap.get(model);
-  if (!expiry) return false;
-  if (Date.now() < expiry) {
-    return true;
-  }
-  modelCooldownMap.delete(model);
-  return false;
+  return (modelCooldownMap.get(model) || 0) > Date.now();
 }
-
 function markModelCooldown(model: string, durationMs: number = 60 * 60 * 1000) {
   modelCooldownMap.set(model, Date.now() + durationMs);
+}
+
+async function getAvailableTextModels(client: GoogleGenAI): Promise<string[]> {
+  const pager = await client.models.list({ config: { pageSize: 100 } });
+  const names: string[] = [];
+  for await (const model of pager) {
+    const name = model.name?.replace(/^models\//, '');
+    if (name?.startsWith('gemini-') && model.supportedActions?.includes('generateContent')
+      && !/(image|tts|audio|live|robotics|computer-use)/i.test(name)) {
+      names.push(name);
+    }
+  }
+  return [...new Set(names)].sort((a, b) => {
+    const rank = (name: string) => {
+      const preferred = PREFERRED_TEXT_MODELS.indexOf(name);
+      return preferred >= 0 ? preferred : name.includes('flash') ? 10 : 20;
+    };
+    return rank(a) - rank(b) || b.localeCompare(a);
+  });
 }
 
 /**
@@ -106,9 +112,9 @@ function isTransientOrDemandError(err: any): boolean {
 }
 
 /**
- * Execute Gemini generateContent with automatic multi-model waterfall fallback and circuit-breaker.
+ * Execute Gemini generateContent with automatic fallback across available text models.
  * Accepts an optional custom client (e.g. instantiated with user's personal free API key).
- * Returns null if all models are in cooldown or unavailable (allowing zero-failure local fallback).
+ * Returns null if all available models fail, allowing the local fallback.
  */
 async function generateContentWithCascade(
   configPayload: {
@@ -124,12 +130,8 @@ async function generateContentWithCascade(
     return null;
   }
 
-  for (const model of FREE_MODELS_CASCADE) {
-    if (isModelInCooldown(model)) {
-      console.log(`[Gemini Cascade] Omitiendo '${model}' por enfriamiento temporal de cuota.`);
-      continue;
-    }
-
+  const availableModels = await getAvailableTextModels(activeClient);
+  for (const model of availableModels.slice(0, 6)) {
     try {
       console.log(`[Gemini Cascade] Generando contenido con modelo: ${model}...`);
       const response = await activeClient.models.generateContent({
@@ -150,7 +152,6 @@ async function generateContentWithCascade(
     } catch (err: any) {
       const isQuota = isTransientOrDemandError(err);
       if (isQuota) {
-        markModelCooldown(model, 60 * 60 * 1000); // 1 hour circuit breaker
         console.log(`[Gemini Cascade] Modelo '${model}' pausado por cuota o alta demanda. Conmutando al siguiente modelo...`);
         await new Promise((resolve) => setTimeout(resolve, 200));
       } else {
@@ -843,28 +844,19 @@ app.post('/api/validate-key', async (req, res) => {
       },
     });
 
-    // Minimal lightweight ping to verify credentials and quota
-    const response = await testClient.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
-      contents: 'Responde únicamente "OK".',
-      config: {
-        maxOutputTokens: 5,
-      },
-    });
-
-    if (response && response.text) {
-      return res.json({
-        success: true,
-        message: '¡Clave de Google Gemini verificada y lista para usar!',
+    // Authenticate without requiring one fixed model or consuming generation quota.
+    const models = await getAvailableTextModels(testClient);
+    if (!models.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Google aceptó la clave, pero no ofrece modelos Gemini de generación de texto para este proyecto.',
       });
     }
-
     return res.json({
       success: true,
-      message: 'Clave aceptada correctamente.',
+      message: '¡Clave de Google Gemini verificada y guardada! La generación depende de la cuota disponible de tu proyecto.',
     });
   } catch (err: any) {
-    console.error('[ValidateKey] Error validando clave:', err);
     let userMsg = 'No se pudo verificar la clave con Google AI Studio.';
     const raw = (err.message || '').toLowerCase();
     const status = String(err.status || err.code || err.statusCode || '');
@@ -874,21 +866,20 @@ app.post('/api/validate-key', async (req, res) => {
     } else if (raw.includes('permission_denied') || status === '403') {
       userMsg = 'Permiso denegado. Asegúrate de tener la API de Gemini habilitada en tu proyecto de Google Cloud.';
     } else if (raw.includes('resource_exhausted') || status === '429') {
-      // 429 means the key is authentic, just rate-limited
-      return res.json({
-        success: true,
-        message: 'Clave válida autenticada (límite temporal de peticiones por minuto de la cuenta gratuita).',
-      });
+      userMsg = 'Google devolvió un límite de cuota al verificar la clave. Inténtalo más tarde o revisa la cuota de tu proyecto.';
     } else if (raw.includes('503') || raw.includes('unavailable') || raw.includes('high demand')) {
-      return res.json({
-        success: true,
-        message: 'Clave guardada localmente (alta demanda momentánea en servidores de Google).',
-      });
+      userMsg = 'Google no está disponible temporalmente. No se pudo verificar la clave; inténtalo nuevamente.';
     }
-
+    let detail = String(err.message || '');
+    try { detail = JSON.parse(detail).error?.message || detail; } catch { /* SDK may return plain text. */ }
+    const suppliedKey = String(req.headers['x-gemini-api-key'] || req.body?.apiKey || '').trim();
+    if (suppliedKey) detail = detail.split(suppliedKey).join('[clave oculta]');
+    detail = detail.replace(/AIza[A-Za-z0-9_-]+/g, '[clave oculta]').slice(0, 350);
+    console.warn('[ValidateKey] Google respondió con estado:', status || 'desconocido');
     return res.status(400).json({
       success: false,
-      error: userMsg,
+      error: detail ? `${userMsg} Google: ${detail}` : userMsg,
+      upstreamStatus: status || undefined,
     });
   }
 });
