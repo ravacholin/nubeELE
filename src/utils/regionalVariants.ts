@@ -1,5 +1,5 @@
-import { RegionalUsage } from '../types';
-import { getApiHeaders } from './apiKeyStorage';
+import type { RegionalUsage } from '../types';
+import { getApiHeaders } from './apiKeyStorage.js';
 
 /**
  * Standard Hispanic countries with flags and regions

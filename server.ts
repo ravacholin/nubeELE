@@ -7,7 +7,7 @@ import {
   CURATED_REGIONAL_NOUNS,
   normalizeNounKey,
   createUniversalNounUsage,
-} from './src/utils/regionalVariants';
+} from './src/utils/regionalVariants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
