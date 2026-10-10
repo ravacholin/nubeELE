@@ -224,3 +224,53 @@ button:disabled { cursor: not-allowed; }
 .lexical-sheet .lexical-collocation { font-family: var(--font-mono); font-size: 11px; line-height: 1.6; padding-top: 10px; margin-top: 12px; flex-wrap: wrap; }
 .lexical-expanded .lexical-example > div:first-child > svg { display: none; }
 .lexical-sheet .lexical-adjustments { font-family: var(--font-mono); font-size: 11px; }
+
+/* Quiet movement: brief entrances and tactile feedback, never continuous decoration. */
+:root { --ease-out: cubic-bezier(.2,.75,.25,1); --rule: #343431; --paper: #edece7; }
+@keyframes surface-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ink-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes progress-sweep { from { transform: translateX(-120%); } to { transform: translateX(350%); } }
+.compose-panel { animation: surface-enter 320ms var(--ease-out) both; }
+.cloud-stage:not(.presentation-stage) { position: relative; }
+.cloud-stage[data-generating]::before { content: ''; position: absolute; z-index: 45; top: 0; left: 0; height: 2px; width: 30%; background: #edece7; animation: progress-sweep 1.4s ease-in-out infinite; pointer-events: none; }
+.cloud-node { animation: ink-enter 220ms ease-out both; }
+.lexical-sheet, .utility-sheet { animation: surface-enter 220ms var(--ease-out) both; }
+.lexical-overlay, .utility-overlay { animation: ink-enter 180ms ease-out both; }
+.save-feedback { animation: ink-enter 180ms ease-out both; max-width: calc(100vw - 32px); width: max-content; border-width: 1px; border-color: var(--rule); font-size: 11px; line-height: 1.6; padding: 12px 18px; background: #edece7; color: #111; box-shadow: 0 12px 40px #0004; }
+.save-feedback strong, .save-feedback svg { color: #333; }
+.app-shell button, .app-shell summary, .app-shell a { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease; }
+.app-shell button:disabled { opacity: .45; }
+.generate-button:active:not(:disabled), .lexical-actions button:active:not(:disabled) { transform: translateY(1px); }
+.topic-input, .level-select { transition: background-color 160ms, border-color 160ms; }
+.topic-field:focus-within .topic-input { border-color: #edece7; }
+.topic-field:focus-within > svg { color: #edece7; }
+.utility-overlay { background: #0009; backdrop-filter: blur(6px); }
+.utility-sheet { color: var(--paper); background: #111; border-color: var(--rule); max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; font-family: var(--font-sans); }
+.utility-sheet > header, .utility-sheet > div:first-child { background: transparent; border-color: var(--rule); padding: 18px 24px; }
+.utility-sheet h2, .utility-sheet h3 { font-family: var(--font-sans); font-size: 22px; font-weight: 500; letter-spacing: -.035em; text-transform: none; }
+.utility-sheet button { min-height: 44px; }
+.utility-sheet button[aria-label^="Cerrar"] { min-width: 44px; }
+.utility-sheet input { font-size: 16px; background: #171717; border-color: #44443f; }
+.utility-sheet .export-option { background: transparent; padding: 18px 0; border: 0; border-top: 1px solid var(--rule); gap: 20px; }
+.export-option > div { min-width: 0; }
+.export-option > div > span:first-child { text-transform: none; font-family: var(--font-sans); font-weight: 500; font-size: 15px; margin-bottom: 5px; }
+.export-option > div > span:last-child { font-size: 12px; line-height: 1.6; }
+.export-option > button { flex-shrink: 0; font-family: var(--font-mono); font-size: 10px; }
+.utility-sheet details summary { min-height: 44px; align-content: center; }
+@supports (interpolate-size: allow-keywords) {
+  .topic-explorer, .cloud-footer details, .regional-disclosure { interpolate-size: allow-keywords; }
+  .topic-explorer::details-content, .cloud-footer details::details-content, .regional-disclosure::details-content { overflow: hidden; block-size: 0; transition: block-size 220ms var(--ease-out), content-visibility 220ms allow-discrete; }
+  .topic-explorer[open]::details-content, .cloud-footer details[open]::details-content, .regional-disclosure[open]::details-content { block-size: auto; }
+}
+@media (max-width: 639px) {
+  .utility-overlay { padding: 0; align-items: flex-end; }
+  .utility-sheet { max-height: 92dvh; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .utility-sheet > header, .utility-sheet > div:first-child { padding: 14px 20px; }
+  .utility-sheet h2, .utility-sheet h3 { font-size: 21px; }
+  .utility-sheet .export-option { gap: 12px; }
+  .save-feedback { bottom: max(20px, env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compose-panel, .cloud-node, .lexical-sheet, .utility-sheet, .lexical-overlay, .utility-overlay, .save-feedback { animation: none; }
+  .cloud-stage[data-generating]::before { animation: none; width: 100%; opacity: .5; }
+}

@@ -79,6 +79,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   const [dimensions, setDimensions] = useState({ width: 960, height: 600 });
   const [layoutHeight, setLayoutHeight] = useState(480);
   const [hoveredWordId, setHoveredWordId] = useState<string | null>(null);
+  const layoutSeed = useRef(0);
+  const lastGeometry = useRef('');
   const [nodes, setNodes] = useState<PhysicsNode[]>([]);
   const [playingWordId, setPlayingWordId] = useState<string | null>(null);
 
@@ -176,7 +178,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedWord) return;
+      if (!selectedWord || (e.target instanceof Element && e.target.closest('input, textarea, select, button:not(.cloud-tag), [contenteditable=true], [role=dialog]'))) return;
+      if (e.key === ' ' && e.target instanceof Element && e.target.closest('.cloud-tag')) return;
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         onNextWord();
@@ -208,7 +211,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         const { estimatedWidth, estimatedHeight } = estimateDimensions(word, fontSize);
         return { width: estimatedWidth, height: estimatedHeight, fontSize };
       });
-      const packed = packCloudBoxes(boxes, width, height, forceMode === 'spiral' ? 0 : Math.random() * Math.PI * 2);
+      const packed = packCloudBoxes(boxes, width, height, forceMode === 'spiral' ? 0 : layoutSeed.current);
       setLayoutHeight(packed.height);
       return sortedWords.map((w, index) => {
         const { x: finalX, y: finalY } = packed.positions[index];
@@ -240,8 +243,17 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Initialize or re-layout nodes when words, layout mode, or dimensions change
   useEffect(() => {
-    const newNodes = layoutNodesCollisionFree(words);
-    setNodes(newNodes);
+    const geometry = JSON.stringify([dimensions, layoutMode, isPresentationMode,
+      words.map(word => [word.id, word.lemma, word.word, word.article, word.category, word.weight]),
+      words.map(word => estimateDimensions(word, getFontSize(word.weight, dimensions.width < 640))),
+    ]);
+    if (lastGeometry.current === geometry) {
+      const byId = new Map(words.map(word => [word.id, word]));
+      setNodes(previous => previous.map(node => ({ ...node, word: byId.get(node.id) || node.word })));
+      return;
+    }
+    lastGeometry.current = geometry;
+    setNodes(layoutNodesCollisionFree(words));
   }, [words, layoutMode, dimensions.width, dimensions.height, layoutNodesCollisionFree]);
 
   // Keep resting tags still and separate their bounding boxes during dragging.
@@ -253,7 +265,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       lastTime = now;
 
       setNodes((prevNodes) => {
-        if (!prevNodes.length) return prevNodes;
+        if (!prevNodes.length || (!draggingNodeRef.current && prevNodes.every(node => Math.abs(node.vx) < .01 && Math.abs(node.vy) < .01 && Math.abs(node.targetX - node.x) < .1 && Math.abs(node.targetY - node.y) < .1))) return prevNodes;
 
         const currentMouse = mousePosRef.current;
         const dragging = draggingNodeRef.current;
@@ -299,8 +311,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             const dy = nodeCenterY - otherCenterY;
 
             // Required separation with padding
-            const padX = 16;
-            const padY = 12;
+            const padX = dimensions.width < 640 ? 12 : 16;
+            const padY = dimensions.width < 640 ? 8 : 12;
             const minDistX = (node.width + other.width) / 2 + padX;
             const minDistY = (node.height + other.height) / 2 + padY;
 
@@ -451,6 +463,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Re-scramble / Reorganize physics impulse
   const handleReorganize = () => {
+    layoutSeed.current += 1.7;
     const reordered = layoutNodesCollisionFree(words);
     setNodes(reordered);
   };
@@ -971,7 +984,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
               color: isSelected ? '#000000' : node.color,
               touchAction: 'none',
             }}
-            className={`absolute top-0 left-0 select-none leading-none group focus-within:z-30 will-change-transform transition-[border-color,background-color,box-shadow] duration-150 ${
+            className={`cloud-node absolute top-0 left-0 select-none leading-none group focus-within:z-30 will-change-transform transition-[border-color,background-color,box-shadow] duration-150 ${
               isSelected ? 'z-30 cursor-pointer' : isHovered ? 'z-20 cursor-grab' : 'z-10 cursor-pointer'
             }`}
           >

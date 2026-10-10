@@ -1,3 +1,4 @@
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { WordDetailsStatus, WordLexicalExtras, type DetailState } from './WordDetailsStatus';
 import React, { useState } from 'react';
 import { WordItem } from '../types';
@@ -23,6 +24,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
   onToggleFavorite,
   onHideWord,
 }) => {
+  const dialogRef = useDialogFocus(!!word);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speechRate, setSpeechRate] = useState<number>(0.9);
 
@@ -55,7 +57,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
 
   return (
     <div
-      role="dialog"
+      ref={dialogRef} tabIndex={-1} role="dialog"
       aria-modal="true"
       aria-label="Ficha completa de palabra"
       className="lexical-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity"

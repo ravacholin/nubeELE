@@ -539,7 +539,7 @@ export default function App() {
         )}
 
         {/* Word Cloud Visual Stage Container - Brutalist Frame */}
-        <section aria-label="Nube de palabras interactiva" className={`cloud-stage bg-[#111111] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
+        <section data-generating={isLoading || undefined} aria-label="Nube de palabras interactiva" className={`cloud-stage bg-[#111111] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
           isPresentationMode ? 'presentation-stage fixed inset-0 z-50 rounded-none border-none' : ''
         }`}>
           {/* Cloud Header / Toolbar */}
@@ -756,7 +756,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#151515] border-2 border-zinc-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
+          className="save-feedback fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#151515] border-2 border-zinc-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
         >
           {saveToast.isSaved ? (
             <Check className="w-4 h-4 text-zinc-400 shrink-0" />

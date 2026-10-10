@@ -1,3 +1,4 @@
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import React, { useState, useEffect } from 'react';
 import { WordItem } from '../types';
 import { cleanDisplayWord } from '../utils/grammar';
@@ -16,6 +17,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   title,
   words,
 }) => {
+  const dialogRef = useDialogFocus(isOpen);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,14 +65,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   return (
     <div
-      role="dialog"
+      ref={dialogRef} tabIndex={-1} role="dialog"
       aria-modal="true"
       aria-labelledby="export-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="utility-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono"
+        className="utility-sheet w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#282828] bg-[#141414]">
@@ -98,7 +100,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </p>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
+            <div className="export-option flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
               <div>
                 <span className="font-bold text-white uppercase text-[11px] block">
                   Formato Markdown / Ficha completa
@@ -116,7 +118,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
+            <div className="export-option flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
               <div>
                 <span className="font-bold text-white uppercase text-[11px] block">
                   Lista simple de palabras

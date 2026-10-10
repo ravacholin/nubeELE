@@ -1,3 +1,4 @@
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import React, { useState, useEffect } from 'react';
 import {
   getStoredApiKey,
@@ -18,6 +19,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onClose,
   onKeyChange,
 }) => {
+  const dialogRef = useDialogFocus(isOpen);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [inputKey, setInputKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -188,10 +190,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="api-key-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs"
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="api-key-title"
+      className="utility-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs"
       onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-[#101012] border border-zinc-700 shadow-2xl"
+      <div className="utility-sheet w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-[#101012] border border-zinc-700 shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between p-5 border-b border-zinc-800">
           <div className="flex items-center gap-2">
