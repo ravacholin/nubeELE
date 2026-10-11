@@ -1,5 +1,5 @@
 import type { DetailState } from './WordDetailsStatus';
-import { packCloudBoxes } from '../utils/cloudLayout';
+import { flowCloudBoxes, packCloudBoxes } from '../utils/cloudLayout';
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { WordItem, LayoutMode, ColorPalette } from '../types';
 import { playSpanishSpeech, prefetchSpanishAudio } from '../utils/audio';
@@ -79,25 +79,34 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   // Mobile visual display mode: 'canvas' (floating/spiral physics) or 'mosaico' (flow tag cloud cluster)
   const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>('canvas');
 
-  // Measure container dimensions (accurately respect mobile screen width)
+  // The cloud fills its stage: measure the stage, not the content.
   useEffect(() => {
     const updateSize = () => {
-      if (containerRef.current) {
-        const { clientWidth } = containerRef.current;
-        const isMobileScreen = clientWidth > 0 && clientWidth < 640;
-        setDimensions({
-          width: Math.max(clientWidth || 360, 280),
-          height: isPresentationMode ? Math.max(window.innerHeight - 96, 480) : isMobileScreen ? 440 : 520,
-        });
-      }
+      const container = containerRef.current;
+      if (!container) return;
+      const stage = container.parentElement;
+      const width = Math.max(container.clientWidth || 360, 280);
+      const stageHeight = stage?.clientHeight || 0;
+      setDimensions({ width, height: Math.max(stageHeight, width < 640 ? 420 : 480) });
     };
 
     updateSize();
     let active = true;
     document.fonts.ready.then(() => { if (active) updateSize(); });
-    window.addEventListener('resize', updateSize);
-    return () => { active = false; window.removeEventListener('resize', updateSize); };
-  }, [isPresentationMode, words.length, mobileViewStyle]);
+    const observer = new ResizeObserver(updateSize);
+    if (containerRef.current?.parentElement) observer.observe(containerRef.current.parentElement);
+    return () => { active = false; observer.disconnect(); };
+  }, [isPresentationMode, words.length === 0, mobileViewStyle]);
+
+  // While arranging, tags glide to new positions (CSS transition on transform).
+  const [isArranging, setIsArranging] = useState(false);
+  const arrangeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(arrangeTimer.current), []);
+  const startArranging = useCallback(() => {
+    setIsArranging(true);
+    clearTimeout(arrangeTimer.current);
+    arrangeTimer.current = setTimeout(() => setIsArranging(false), 760);
+  }, []);
 
   // Prefetch audio in background whenever words update
   useEffect(() => {
@@ -106,59 +115,46 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     }
   }, [words]);
 
-  // Compute font size based on weight (1 to 5) with dedicated mobile scaling
+  // Starting type scale from the room per word; the layout then shrinks it until everything fits.
+  const typeScale = useMemo(() => {
+    // Phones use the cheap flow layout, so start large and let the fit loop shrink it.
+    if (dimensions.width < 640 || dimensions.height > dimensions.width * 1.1) return 1.8;
+    const room = (dimensions.width * dimensions.height) / (Math.max(words.length, 8) * 30000);
+    return Math.min(1.7, Math.max(.6, Math.sqrt(room)));
+  }, [dimensions.width, dimensions.height, words.length]);
+
   const getFontSize = useCallback(
     (weight: number, isMobile: boolean) => {
-      if (isPresentationMode && !isMobile) {
-        switch (weight) {
-          case 5: return 52;
-          case 4: return 42;
-          case 3: return 32;
-          case 2: return 24;
-          case 1: default: return 18;
-        }
-      }
-      if (isMobile) {
-        // Clear, readable, perfectly proportioned scale for mobile phones (320px - 480px)
-        switch (weight) {
-          case 5: return 24;
-          case 4: return 21;
-          case 3: return 18;
-          case 2: return 16;
-          case 1: default: return 14;
-        }
-      }
-      // Desktop standard
-      switch (weight) {
-        case 5: return 42;
-        case 4: return 32;
-        case 3: return 24;
-        case 2: return 19;
-        case 1: default: return 15;
-      }
+      const steps = isMobile ? [15, 17, 20, 24, 29] : [16, 20, 26, 34, 44];
+      const index = Math.max(1, Math.min(5, weight)) - 1;
+      return steps[index] * typeScale;
     },
-    [isPresentationMode]
+    [typeScale]
   );
 
-  // Estimate node dimensions accurately for non-overlapping bounding boxes
+  // Measure the same font the tags use, with one shared canvas context.
+  const measureRef = useRef<{ context: CanvasRenderingContext2D | null; family: string } | null>(null);
   const estimateDimensions = useCallback(
-    (word: WordItem, fontSize: number) => {
+    (word: WordItem, fontSize: number, minHeight = 44, padY = 12) => {
+      if (!measureRef.current) {
+        measureRef.current = {
+          context: document.createElement('canvas').getContext('2d'),
+          family: getComputedStyle(document.body).fontFamily,
+        };
+      }
+      const { context, family } = measureRef.current;
       const displayWord = cleanDisplayWord(word.lemma || word.word);
       const article = getValidArticle(word.category, word.article);
-      const isMobile = dimensions.width < 640;
-      // Measure the same font used by the tags so larger mobile type still fits.
-      const context = document.createElement('canvas').getContext('2d');
-      const family = getComputedStyle(document.body).fontFamily;
       if (context) context.font = `600 ${fontSize}px ${family}`;
       const wordWidth = context?.measureText(displayWord).width ?? displayWord.length * fontSize * 0.61;
       if (context) context.font = `400 ${fontSize * 0.62}px ${family}`;
       const articleWidth = article ? (context?.measureText(article).width ?? article.length * fontSize * 0.62) + 6 : 0;
       const estimatedWidth = Math.ceil(wordWidth + articleWidth + 22);
-      const estimatedHeight = Math.max(44, Math.ceil(fontSize + 20));
+      const estimatedHeight = Math.max(minHeight, Math.ceil(fontSize * 1.2 + padY));
 
       return { estimatedWidth, estimatedHeight };
     },
-    [dimensions.width]
+    []
   );
 
   // Keyboard navigation
@@ -184,20 +180,33 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedWord, onNextWord, onPrevWord, onCloseSelectedWord]);
 
-  // Non-overlapping initial placement algorithm (Archimedean Packing)
+  // Pack every word inside the visible stage: if the cloud does not fit,
+  // shrink the type and pack again, so the stage never needs to scroll.
   const layoutNodesCollisionFree = useCallback(
     (currentWords: WordItem[], forceMode?: LayoutMode): PhysicsNode[] => {
       const { width, height } = dimensions;
       const isMobile = width < 640;
       const sortedWords = [...currentWords].sort((a, b) => b.weight - a.weight);
-      const boxes = sortedWords.map(word => {
-        let fontSize = getFontSize(word.weight, isMobile);
-        const maxWidth = width - 40;
-        while (estimateDimensions(word, fontSize).estimatedWidth > maxWidth) fontSize *= 0.95;
-        const { estimatedWidth, estimatedHeight } = estimateDimensions(word, fontSize);
+      const seed = forceMode === 'spiral' ? 0 : layoutSeed.current;
+      const measure = (fit: number) => sortedWords.map(word => {
+        let fontSize = Math.max(10, getFontSize(word.weight, isMobile) * fit);
+        // Phones lay words out as text lines, so the row height follows the type.
+        const minHeight = isMobile ? 0 : Math.max(28, Math.round(44 * Math.min(1, fit * 1.1)));
+        const padY = isMobile ? 8 : 12;
+        while (estimateDimensions(word, fontSize, minHeight, padY).estimatedWidth > width - 40 && fontSize > 10) fontSize *= 0.95;
+        const { estimatedWidth, estimatedHeight } = estimateDimensions(word, fontSize, minHeight, padY);
         return { width: estimatedWidth, height: estimatedHeight, fontSize };
       });
-      const packed = packCloudBoxes(boxes, width, height, forceMode === 'spiral' ? 0 : layoutSeed.current);
+      // Portrait stages (phones, upright tablets) read best as centered text lines.
+      const pack = isMobile || height > width * 1.1 ? flowCloudBoxes : packCloudBoxes;
+      let fit = 1;
+      let boxes = measure(fit);
+      let packed = pack(boxes, width, height, seed);
+      for (let attempt = 0; packed.height > height && attempt < 24; attempt++) {
+        fit *= Math.max(.8, Math.min(.95, Math.sqrt(height / packed.height)));
+        boxes = measure(fit);
+        packed = pack(boxes, width, height, seed);
+      }
       setLayoutHeight(packed.height);
       return sortedWords.map((w, index) => {
         const { x: finalX, y: finalY } = packed.positions[index];
@@ -239,6 +248,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       return;
     }
     lastGeometry.current = geometry;
+    // Reflow existing words with a glide; new words still ink in.
+    if (nodesRef.current.length && words.length) startArranging();
     setNodes(layoutNodesCollisionFree(words));
   }, [words, layoutMode, dimensions.width, dimensions.height, layoutNodesCollisionFree]);
 
@@ -448,17 +459,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   };
 
   // Re-scramble / Reorganize physics impulse
-  const [isArranging, setIsArranging] = useState(false);
-  const arrangeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(arrangeTimer.current), []);
   const handleReorganize = () => {
     layoutSeed.current += 1.7;
-    const reordered = layoutNodesCollisionFree(words);
-    // Glide tags to their new places instead of jumping.
-    setIsArranging(true);
-    setNodes(reordered);
-    clearTimeout(arrangeTimer.current);
-    arrangeTimer.current = setTimeout(() => setIsArranging(false), 720);
+    startArranging();
+    setNodes(layoutNodesCollisionFree(words));
   };
 
   // Pronounce word with high-fidelity Studio Neural Gemini TTS (Single natural voice)
@@ -506,7 +510,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   // Empty board: a quiet sheet with a single invitation to start again.
   if (words.length === 0) {
     return (
-      <div ref={containerRef} className="empty-board" style={{ minHeight: isPresentationMode ? 640 : dimensions.width < 640 ? 420 : 520 }}>
+      <div ref={containerRef} className="empty-board" style={{ minHeight: dimensions.height }}>
         <div className="empty-board-inner">
           <p className="eyebrow"><span>Pizarra</span><span>Vacía</span></p>
           <h3 className="empty-title">Una página <em>en blanco.</em></h3>
@@ -535,8 +539,16 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Mobile mosaic: an indexed list so every word stays legible on small screens.
   if (mobileViewStyle === 'mosaico') {
+    // Fit the whole list on screen: one column, or two when it is long.
+    const columns = words.length > 12 ? 2 : 1;
+    const rows = Math.ceil(words.length / columns);
     return (
-      <div ref={containerRef} className="mosaic">
+      <div
+        ref={containerRef}
+        className="mosaic"
+        data-columns={columns}
+        style={{ height: dimensions.height, '--rows': rows, '--row-h': `${Math.min(64, (dimensions.height - 104) / rows)}px` } as React.CSSProperties}
+      >
         <div className="mosaic-bar">
           <span className="eyebrow"><span>Lista</span><span>Tocá una palabra</span></span>
           <button onClick={() => setMobileViewStyle('canvas')} className="text-button">
@@ -601,7 +613,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       onTouchEnd={handleMouseUp}
       className={`tag-canvas ${isArranging ? 'is-arranging' : ''} ${selectedWord ? 'has-selection' : ''}`}
       style={{
-        minHeight: Math.max(layoutHeight, isPresentationMode ? 640 : dimensions.width < 640 ? 440 : 520),
+        minHeight: Math.max(layoutHeight, dimensions.height),
         cursor: draggingNodeRef.current ? 'grabbing' : 'default',
       }}
     >
@@ -610,12 +622,13 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
           <button
             onClick={() => setMobileViewStyle('mosaico')}
             title="Ver todas las palabras en una lista"
+            aria-label="Ver como lista"
           >
             <List aria-hidden="true" />
             <span>Lista</span>
           </button>
         )}
-        <button onClick={handleReorganize} title="Reorganizar las palabras">
+        <button onClick={handleReorganize} title="Reorganizar las palabras" aria-label="Reorganizar">
           <Shuffle aria-hidden="true" />
           <span>Reorganizar</span>
         </button>
@@ -682,10 +695,6 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
       {inspector}
 
-      <div className="canvas-guide" aria-hidden="true">
-        <span className="hidden sm:inline">Arrastrá para ordenar · Elegí una palabra para explorar</span>
-        <span className="sm:hidden">Tocá para explorar · Arrastrá para ordenar</span>
-      </div>
     </div>
   );
 };
