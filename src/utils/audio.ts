@@ -92,6 +92,8 @@ export async function playSpanishSpeech(
     return playHtmlAudio(audioUrl, options);
   }
 
+  if (!navigator.onLine) return playEnhancedWebSpeech(cleanText, options);
+
   // 2. Fetch high-fidelity neural audio from server /api/tts
   try {
     const controller = new AbortController();

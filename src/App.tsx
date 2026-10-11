@@ -1,5 +1,9 @@
 import { requestWordDetails } from './utils/wordDetails';
 import { requestCloud } from './utils/cloudRequests';
+import { appendCloudWords, changeCloudFocus, keepSelectedWords, replaceSelectedWords, matchesCloudFocus, MAX_CLOUD_WORDS, type CloudFocus } from './utils/cloudWords';
+import { readCloudSnapshot, saveCloudSnapshot } from './utils/cloudSnapshot';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { PwaControls } from './components/PwaControls';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
@@ -60,14 +64,23 @@ function withViewTransition(update: () => void) {
 
 export default function App() {
   const cloudRequestId = useRef(0);
+  const [initialSnapshot] = useState(readCloudSnapshot);
+  const isOnline = useOnlineStatus();
   const [topicInput, setTopicInput] = useState('');
   const [isSuggestOpen, setIsSuggestOpen] = useState(false);
-  const [currentTopic, setCurrentTopic] = useState('verduras');
+  const [currentTopic, setCurrentTopic] = useState(initialSnapshot?.topic ?? 'verduras');
   const [selectedLevel, setSelectedLevel] = useState('Todos');
 
-  const [cloudData, setCloudData] = useState<CloudData | null>(null);
+  const [cloudData, setCloudData] = useState<CloudData | null>(initialSnapshot?.cloud ?? null);
   const hiddenDuringGeneration = useRef(new Set<string>());
-  const [words, setWords] = useState<WordItem[]>([]);
+  const [words, setWords] = useState<WordItem[]>(initialSnapshot?.cloud.words ?? []);
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+  const [retainedIds, setRetainedIds] = useState(new Set<string>());
+  const retainedIdsRef = useRef(retainedIds);
+  retainedIdsRef.current = retainedIds;
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [cloudFocus, setCloudFocus] = useState<CloudFocus>(initialSnapshot?.focus ?? 'more');
   const [previousWords, setPreviousWords] = useState<WordItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
@@ -84,6 +97,10 @@ export default function App() {
   useEffect(() => {
     setDetailError(null);
     if (!selectedWord?.detailsPending) return;
+    if (!isOnline) {
+      setDetailError('Conecta a internet para completar esta ficha.');
+      return;
+    }
     let active = true;
     const word = selectedWord;
     requestWordDetails(word, currentTopic, getApiHeaders()).then(details => {
@@ -94,18 +111,18 @@ export default function App() {
       updateSavedWordDetails(word.id, enrichment);
     }).catch(error => { if (active) setDetailError(error.message || 'No se pudo completar la ficha.'); });
     return () => { active = false; };
-  }, [selectedWord?.id, currentTopic, detailRetry]);
+  }, [selectedWord?.id, currentTopic, detailRetry, isOnline]);
 
   // Warm just one likely selection after the cloud is usable, never all its cards.
   useEffect(() => {
-    if (isLoading || selectedWord || !words.length) return;
+    if (!isOnline || isLoading || selectedWord || !words.length) return;
     const first = [...words].sort((a, b) => b.weight - a.weight)[0];
     if (!first.detailsPending) return;
     const timer = setTimeout(() => {
       requestWordDetails(first, currentTopic, getApiHeaders()).catch(() => {});
     }, 1200);
     return () => clearTimeout(timer);
-  }, [words, currentTopic, selectedWord?.id, isLoading]);
+  }, [words, currentTopic, selectedWord?.id, isLoading, isOnline]);
   const detailState = { loading: !!selectedWord?.detailsPending && !detailError, error: detailError, retry: () => setDetailRetry(value => value + 1) };
   const [isFullModalOpen, setIsFullModalOpen] = useState(false);
 
@@ -137,11 +154,26 @@ export default function App() {
   // Single elegant dark minimalist brutalist palette
   const activePalette = PALETTES.noche;
 
+  useEffect(() => {
+    if (!cloudData || isLoading || isExpanding) return;
+    saveCloudSnapshot({ version: 1, topic: currentTopic, focus: cloudFocus, cloud: { ...cloudData, words } });
+  }, [cloudData, words, currentTopic, cloudFocus, isLoading, isExpanding]);
+
   // Fetch or generate word cloud
   const fetchCloud = useCallback(async (query: string, level = 'Todos') => {
+    if (!navigator.onLine) {
+      setErrorMessage('Conecta a internet para generar otra nube. Puedes seguir explorando tus palabras.');
+      return;
+    }
     const requestId = ++cloudRequestId.current;
+    const originalWords = wordsRef.current;
+    const selectedIds = new Set(retainedIdsRef.current);
     hiddenDuringGeneration.current.clear();
+    const getRetained = (previous: WordItem[]) => originalWords
+      .filter(word => selectedIds.has(word.id) && !hiddenDuringGeneration.current.has(word.id))
+      .map(word => previous.find(current => current.id === word.id) || word);
     setIsLoading(true);
+    setIsExpanding(false);
     setErrorMessage(null);
     setSelectedWord(null);
 
@@ -149,27 +181,28 @@ export default function App() {
     const applyCloud = (data: CloudData | null) => {
       if (requestId !== cloudRequestId.current) return;
       if (!data) {
-        if (receivedProgress) { setWords([]); setCloudData(null); setSelectedWord(null); }
+        if (receivedProgress) { setWords(previous => getRetained(previous)); setCloudData(null); setSelectedWord(null); }
         return;
       }
       receivedProgress = true;
       setCloudData(data);
       setCurrentTopic(query);
-      setWords(previous => data.words.filter(w => !hiddenDuringGeneration.current.has(w.id)).map(w => {
+      setCloudFocus('more');
+      setWords(previous => keepSelectedWords(getRetained(previous), data.words.filter(w => !hiddenDuringGeneration.current.has(w.id)).map(w => {
         const existing = previous.find(item => item.id === w.id);
         return {
           ...w,
           ...existing,
           isFavorite: isWordSaved(w.id) || isWordSaved(w.lemma || w.word) || !!w.isFavorite,
         };
-      }));
+      }), selectedIds));
     };
     try {
       const data = await requestCloud(query, level, getApiHeaders(), applyCloud);
       applyCloud(data);
     } catch (err: any) {
       if (requestId !== cloudRequestId.current) return;
-      if (receivedProgress) { setWords([]); setCloudData(null); setSelectedWord(null); }
+      if (receivedProgress) { setWords(previous => getRetained(previous)); setCloudData(null); setSelectedWord(null); }
       console.error(err);
       setErrorMessage(err.message || 'No se pudo generar la nube. Intenta de nuevo.');
     } finally {
@@ -179,8 +212,10 @@ export default function App() {
 
   // Initial load
   useEffect(() => {
+    if (initialSnapshot) return;
+    if (!navigator.onLine) { setShowOnlySaved(true); return; }
     fetchCloud('verduras');
-  }, [fetchCloud]);
+  }, [fetchCloud, initialSnapshot]);
 
   // Handle Form Submit
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -189,55 +224,77 @@ export default function App() {
     fetchCloud(topicInput.trim(), selectedLevel);
   };
 
-  // Expand Cloud with more words
-  const handleExpandCloud = async (type: 'more' | 'advanced' | 'verbs' | 'expressions') => {
-    if (isExpanding || isLoading) return;
+  // Change the cloud's focus, add coherent alternatives, or renew selected slots.
+  const handleExpandCloud = async (type: CloudFocus, regenerate = false) => {
+    if (isExpanding || isLoading || (regenerate && !retainedIds.size)) return;
+    if (!navigator.onLine) {
+      setErrorMessage('Conecta a internet para renovar el vocabulario.');
+      return;
+    }
     const requestId = cloudRequestId.current;
+    const selection = new Set(retainedIds);
+    const focus = type === 'more' ? cloudFocus : type;
     setIsExpanding(true);
+    setErrorMessage(null);
 
     try {
-      const existingWordNames = words.map((w) => w.lemma || w.word);
       const res = await fetch('/api/expand-cloud', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
           topic: currentTopic,
-          existingWords: existingWordNames,
-          expansionType: type,
+          existingWords: words.map(word => word.lemma || word.word),
+          expansionType: focus,
+          ...(regenerate ? {
+            wordCount: selection.size,
+            replacementWords: words.filter(word => selection.has(word.id)).map(word => word.lemma || word.word),
+          } : {}),
         }),
       });
-
       const data = await res.json();
       if (requestId !== cloudRequestId.current) return;
-      if (data.success && Array.isArray(data.newWords)) {
-        // Expansions can repeat words already on the board; keep each lemma once.
-        const seen = new Set(words.map(w => (w.lemma || w.word).toLowerCase()));
-        const fresh = (data.newWords as WordItem[]).filter(w => {
-          const key = (w.lemma || w.word).toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        if (!fresh.length) setErrorMessage('No hay palabras nuevas para este tema. Con una API key de Gemini podés seguir ampliando.');
-        setWords((prev) => [...prev, ...fresh]);
-      } else {
-        throw new Error(data.error || 'No se pudieron añadir palabras');
+      if (!res.ok || !data.success || !Array.isArray(data.newWords)) {
+        throw new Error(data.error || 'No se pudo renovar la nube.');
       }
+      const additions = (data.newWords as WordItem[]).filter(word => matchesCloudFocus(word, focus));
+      const update = (current: WordItem[]) => regenerate
+        ? replaceSelectedWords(current, additions, selection)
+        : type === 'more'
+          ? appendCloudWords(current, additions, selection)
+          : changeCloudFocus(current, additions, focus, selection);
+      const next = update(words);
+      const changingFocus = !regenerate && type !== 'more' && focus !== cloudFocus;
+      if (!changingFocus && (!next.length || (next.length === words.length && next.every((word, index) => word.id === words[index].id)))) {
+        setErrorMessage('No hay alternativas nuevas para este tema y enfoque. Se mantienen las palabras actuales.');
+        return;
+      }
+      if (changingFocus && !next.length) {
+        setErrorMessage('No hay términos disponibles para este enfoque y tema. Puedes buscar otro tema o elegir otro enfoque.');
+      }
+      if (regenerate) {
+        const renewed = words.filter((word, index) => selection.has(word.id) && next[index]?.id !== word.id).length;
+        if (renewed < selection.size) {
+          setErrorMessage(`Se renovaron ${renewed} de ${selection.size} palabras. Las demás se mantienen porque no hay más alternativas disponibles.`);
+        }
+      } else {
+        setCloudFocus(focus);
+      }
+      setWords(update);
     } catch (err: any) {
       if (requestId !== cloudRequestId.current) return;
-      console.warn('Expand error, fallback complementario:', err);
-      const fallbackAdditions: WordItem[] = [
-        { id: `fb_${Date.now()}_1`, word: 'el aderezo', lemma: 'aderezo', article: 'el', category: 'sustantivo', level: 'A2', weight: 3, meaning: 'Salsa o condimento con que se sazona una ensalada o plato.', example: 'Preparamos un aderezo con aceite, vinagre y mostaza.' },
-        { id: `fb_${Date.now()}_2`, word: 'condimentar', lemma: 'condimentar', article: null, category: 'verbo', level: 'B1', weight: 4, meaning: 'Añadir especias a la comida para realzar su sabor.', example: 'Condimenta las verduras con romero y pimienta negra.' },
-        { id: `fb_${Date.now()}_3`, word: 'crujiente', lemma: 'crujiente', article: null, category: 'adjetivo', level: 'A2', weight: 4, meaning: 'Que cruje al masticarlo; textura fresca y apetecible.', example: 'La zanahoria cruda es fresca y crujiente.' },
-      ];
-      setWords((prev) => {
-        const seen = new Set(prev.map(w => (w.lemma || w.word).toLowerCase()));
-        return [...prev, ...fallbackAdditions.filter(w => !seen.has(w.lemma.toLowerCase()))];
-      });
+      setErrorMessage(err.message || 'No se pudo renovar la nube. Las palabras se mantienen.');
     } finally {
-      setIsExpanding(false);
+      if (requestId === cloudRequestId.current) setIsExpanding(false);
     }
+  };
+
+  const handleToggleSelection = (id: string) => {
+    if (isLoading || isExpanding || showOnlySaved) return;
+    setRetainedIds(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   // Next / Previous Word navigation
@@ -322,13 +379,30 @@ export default function App() {
     return savedWordsList;
   }, [showOnlySaved, words, savedWordsList]);
 
+  // A word's card closes when that word leaves the visible cloud.
+  useEffect(() => {
+    if (selectedWord && !displayedWords.some(word => word.id === selectedWord.id)) {
+      setSelectedWord(null);
+      setIsFullModalOpen(false);
+    }
+  }, [displayedWords, selectedWord?.id]);
+
+  useEffect(() => {
+    setRetainedIds(previous => {
+      const next = new Set([...previous].filter(id => words.some(word => word.id === id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [words]);
+
   // Clear Board (Pizarra limpia para la clase)
   const handleClearBoard = () => {
     if (words.length === 0) return;
     ++cloudRequestId.current;
     setIsLoading(false);
+    setIsExpanding(false);
     setPreviousWords([...words]);
     setWords([]);
+    setRetainedIds(new Set());
     setSelectedWord(null);
     setCloudData((prev) =>
       prev
@@ -408,7 +482,7 @@ export default function App() {
           className="brand"
           title="Volver al tema inicial"
         >
-          <span className="brand-mark" aria-hidden="true">N</span>
+          <img className="brand-mark" src="/brand/nubeele-mark.svg" width="20" height="20" alt="" aria-hidden="true" />
           <span className="brand-name">Nube<span>ELE</span></span>
         </a>
 
@@ -464,13 +538,14 @@ export default function App() {
             ))}
           </select>
 
-          <button type="submit" disabled={isLoading} className="generate-button" data-loading={isLoading || undefined} aria-label="Generar nube">
+          <button type="submit" disabled={isLoading || !isOnline} className="generate-button" data-loading={isLoading || undefined} aria-label="Generar nube">
             <span className="generate-label">{isLoading ? 'Generando' : 'Generar'}</span>
             <ArrowRight className="generate-icon" aria-hidden="true" />
           </button>
         </form>
 
         <nav className="nav-actions" aria-label="Acciones">
+          <PwaControls isOnline={isOnline} />
           <button
             onClick={() => setShowOnlySaved(!showOnlySaved)}
             className="nav-link"
@@ -514,6 +589,15 @@ export default function App() {
         aria-label="Nube de palabras interactiva"
         className={`cloud-stage ${isPresentationMode ? 'presentation-stage' : ''}`}
       >
+        {isSelecting || retainedIds.size > 0 ? (
+          <div className="selection-bar" aria-label="Selección de palabras">
+            <span role="status">{retainedIds.size ? `${retainedIds.size} seleccionadas · se conservan al buscar otro tema` : 'Selecciona las palabras que quieres conservar o renovar'}</span>
+            <button className="bar-button" onClick={() => handleExpandCloud('more', true)} disabled={!retainedIds.size || isLoading || isExpanding || !isOnline}>
+              <RotateCcw aria-hidden="true" /> Regenerar selección
+            </button>
+            <button className="bar-button" onClick={() => { setRetainedIds(new Set()); setIsSelecting(false); }} disabled={isLoading || isExpanding}>Deseleccionar</button>
+          </div>
+        ) : null}
         {errorMessage && (
           <div role="alert" className="notice">
             <span className="notice-text">{errorMessage}</span>
@@ -528,10 +612,14 @@ export default function App() {
             <h1 key={cloudData?.title} className="cloud-title">
               {cloudData?.title || 'Nube de palabras'}
             </h1>
-            <span className="cloud-count" aria-label={`${displayedWords.length} palabras`}>
+            <span
+              className="cloud-count"
+              aria-label={`${displayedWords.length} palabras`}
+              title={showOnlySaved ? undefined : `Hasta ${MAX_CLOUD_WORDS} términos. Al añadir nuevos, salen los más antiguos.`}
+            >
               {String(displayedWords.length).padStart(2, '0')}
             </span>
-            <span className="cloud-level">{isLoading ? 'Generando…' : showOnlySaved ? 'Guardadas' : levelLabel}</span>
+            <span className="cloud-level">{isLoading ? 'Generando…' : isExpanding ? 'Renovando…' : showOnlySaved ? 'Guardadas' : cloudFocus === 'more' ? levelLabel : EXPANSIONS.find(item => item.type === cloudFocus)?.label}</span>
             {showOnlySaved && (
               <button onClick={() => setShowOnlySaved(false)} className="caption-link">Ver toda la nube</button>
             )}
@@ -558,21 +646,28 @@ export default function App() {
             hasRestorableWords={previousWords.length > 0}
             onQuickTopic={runTopic}
             onToggleFavorite={handleToggleFavorite}
+            isSelecting={isSelecting && !showOnlySaved}
+            retainedIds={retainedIds}
+            selectionDisabled={isLoading || isExpanding || showOnlySaved}
+            onToggleSelectionMode={() => setIsSelecting(previous => !previous)}
+            onToggleSelection={handleToggleSelection}
           />
         </div>
 
         {!isPresentationMode && (
           <footer className="cloud-footer">
             <div className="footer-group">
-              <span className="row-label">Ampliar</span>
+              <span className="row-label">Explorar</span>
               {EXPANSIONS.map(({ type, label }) => (
                 <button
                   key={type}
                   onClick={() => handleExpandCloud(type)}
-                  disabled={isExpanding || isLoading}
+                  disabled={isExpanding || isLoading || !isOnline}
                   className="bar-button"
+                  aria-pressed={type === cloudFocus && type !== 'more'}
+                  title={type === 'more' ? 'Añadir palabras del enfoque actual' : 'Cambiar la nube a este enfoque'}
                 >
-                  <span aria-hidden="true">+</span>
+                  <span aria-hidden="true">{type === 'more' ? '+' : '↗'}</span>
                   <span>{label}</span>
                 </button>
               ))}
