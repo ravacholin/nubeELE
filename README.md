@@ -21,6 +21,10 @@ deselect it for retention or regeneration; use Shift + Enter or Shift + Space
 with a keyboard. Dragging cancels selection. The eraser clears the board, keeps
 saved words, and allows restoring the cleared words.
 
+On screens 768 px and wider the word card docks beside the cloud, which
+reflows into the remaining space. On phones the card is a bottom sheet: drag
+it down by its handle or toolbar, or tap the handle, to close it.
+
 ## Validation
 
 ```sh
