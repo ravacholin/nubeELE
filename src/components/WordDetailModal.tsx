@@ -5,7 +5,7 @@ import { WordItem } from '../types';
 import { playSpanishSpeech } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
 import { RegionalVariantsSection } from './RegionalVariantsSection';
-import { Volume2, Volume1, Star, Plus, Check, Minus, EyeOff, X, BookOpen, Quote } from 'lucide-react';
+import { Volume2, Plus, Check, Minus, EyeOff, X } from 'lucide-react';
 
 interface WordDetailModalProps {
   word: WordItem | null;
@@ -47,197 +47,117 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
     setIsPlaying(false);
   };
 
-  const levelColorMap: Record<string, string> = {
-    A1: 'border-zinc-600 text-zinc-400',
-    A2: 'border-zinc-600 text-zinc-400',
-    B1: 'border-zinc-600 text-zinc-400',
-    B2: 'border-zinc-600 text-zinc-400',
-    C1: 'border-zinc-600 text-zinc-400',
-  };
+  const article = getValidArticle(word.category, word.article);
 
   return (
     <div
       ref={dialogRef} tabIndex={-1} role="dialog"
       aria-modal="true"
       aria-label="Ficha completa de palabra"
-      className="lexical-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity"
+      className="lexical-overlay"
       onClick={onClose}
     >
-      <div
-        className="lexical-sheet lexical-expanded relative w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header Ribbon */}
-        <div className="lexical-toolbar flex items-center justify-between px-5 py-3 border-b border-[#282828] bg-[#141414] shrink-0">
-          <div className="lexical-meta flex items-center gap-2 text-xs text-zinc-400">
-            <span className="uppercase text-white font-bold">{word.category}</span>
-            {word.subcategory && (
-              <>
-                <span className="text-zinc-600">/</span>
-                <span className="text-zinc-300">{word.subcategory}</span>
-              </>
-            )}
-            <span className="text-zinc-600">/</span>
-            <span
-              className={`px-1.5 py-0.5 border text-[11px] font-bold uppercase ${
-                levelColorMap[word.level] || 'border-zinc-700 text-zinc-300'
-              }`}
-            >
-              Nivel {word.level}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onToggleFavorite(word.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer border ${
-                word.isFavorite
-                  ? 'bg-zinc-950/80 text-zinc-300 border-zinc-500'
-                  : 'bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 border-[#27272a] hover:border-zinc-500'
-              }`}
-              title={word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
-            >
-              {word.isFavorite ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>Guardada</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>Guardar</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={onClose}
-              className="flex items-center gap-1 px-2.5 py-1 bg-zinc-600/20 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-500 text-xs font-bold transition-all cursor-pointer"
-              title="Cerrar ficha (Esc)"
-            >
-              <X className="w-4 h-4" />
-              <span className="text-[11px] uppercase tracking-wider">Cerrar</span>
+      <div className="lexical-sheet lexical-expanded" onClick={(e) => e.stopPropagation()}>
+        <div className="lexical-toolbar">
+          <span className="eyebrow">
+            <span>Ficha completa</span>
+            <span>Nivel {word.level}</span>
+          </span>
+          <div className="toolbar-actions">
+            <button onClick={onClose} className="icon-button" title="Cerrar ficha (Esc)" aria-label="Cerrar ficha completa">
+              <X aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        {/* Word Title & Pronunciation */}
-        <div className="lexical-body p-6 space-y-5 overflow-y-auto flex-1">
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3">
-            <div>
-              <div className="flex items-baseline gap-2 min-w-0">
-                {(() => {
-                  const validArt = getValidArticle(word.category, word.article);
-                  return validArt ? (
-                    <span className="text-zinc-500 text-xl font-normal">
-                      {validArt}
-                    </span>
-                  ) : null;
-                })()}
-                <h2 className="lexical-title text-3xl font-black uppercase tracking-tight text-white font-mono">
-                  {cleanDisplayWord(word.lemma || word.word)}
-                </h2>
-              </div>
-              {word.translationEn && (
-                <p className="text-sm text-zinc-400 mt-1">
-                  <span className="text-zinc-500 uppercase">EN:</span> {word.translationEn}
-                </p>
-              )}
+        <div className="lexical-body">
+          <div className="inspector-heading">
+            <h2 className="lexical-title">
+              {article && <span className="title-article">{article}</span>}
+              <span>{cleanDisplayWord(word.lemma || word.word)}</span>
+            </h2>
+            <div className="lexical-meta">
+              <span>{word.category}</span>
+              {word.subcategory && <span>{word.subcategory}</span>}
+              <span className="level-badge">{word.level}</span>
             </div>
+            {word.translationEn && (
+              <p className="lexical-translation">
+                <span className="lexical-label">EN</span>
+                <span>{word.translationEn}</span>
+              </p>
+            )}
+          </div>
 
-            {/* Pronunciation triggers */}
-            <div className="lexical-actions flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => handleSpeak(speechRate)}
-                disabled={isPlaying}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs uppercase font-bold tracking-wider transition-colors cursor-pointer"
-                title="Escuchar audio"
-              >
-                <Volume2 className="w-4 h-4 text-black" />
-                <span>Audio</span>
-              </button>
-              <button
-                onClick={() => setSpeechRate((r) => (r === 0.9 ? 0.65 : 0.9))}
-                className="px-2 py-1.5 bg-[#1c1c1c] border border-[#27272a] text-zinc-300 hover:text-white text-xs transition-colors cursor-pointer"
-                title="Alternar velocidad (0.9x / 0.65x)"
-              >
-                <Volume1 className="w-3.5 h-3.5 inline mr-1 text-zinc-400" />
-                <span>{speechRate}x</span>
-              </button>
-            </div>
+          <div className="lexical-actions">
+            <button onClick={() => handleSpeak(speechRate)} disabled={isPlaying} className="button-primary" data-playing={isPlaying || undefined}>
+              <Volume2 aria-hidden="true" />
+              <span>{isPlaying ? 'Sonando' : 'Escuchar'}</span>
+            </button>
+            <button
+              onClick={() => setSpeechRate((r) => (r === 0.9 ? 0.65 : 0.9))}
+              className="button-secondary"
+              title="Alternar velocidad (0.9× / 0.65×)"
+              aria-pressed={speechRate !== 0.9}
+            >
+              <span>{speechRate}×</span>
+            </button>
+            <button
+              onClick={() => onToggleFavorite(word.id)}
+              className="button-secondary"
+              aria-pressed={!!word.isFavorite}
+            >
+              {word.isFavorite ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
+              <span>{word.isFavorite ? 'Guardada' : 'Guardar'}</span>
+            </button>
           </div>
 
           {word.detailsPending ? <WordDetailsStatus state={detailState} /> : <>
-          <WordLexicalExtras word={word} />
-          {/* Meaning Block */}
-          <div className="lexical-section lexical-meaning bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
-              <BookOpen className="w-3.5 h-3.5 text-white" />
-              <span>Significado</span>
-            </div>
-            <p className="text-zinc-200 text-sm leading-relaxed font-sans">
-              {word.meaning}
-            </p>
-          </div>
+            <WordLexicalExtras word={word} />
 
-          {/* Example Sentence */}
-          {word.example && (
-            <div className="lexical-section lexical-example bg-[#181818] border border-[#27272a] p-4 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] uppercase tracking-wider font-bold">
-                <Quote className="w-3.5 h-3.5 text-zinc-400" />
-                <span>En contexto</span>
-              </div>
-              <p className="text-white text-sm font-sans leading-relaxed border-l-2 border-zinc-400 pl-2.5">
-                "{word.example}"
-              </p>
-              {word.collocation && (
-                <p className="lexical-collocation text-xs text-zinc-400 pt-2 border-t border-zinc-800">
-                  <span className="text-zinc-500 uppercase">Colocación:</span> {word.collocation}
-                </p>
-              )}
-            </div>
-          )}
+            <section className="lexical-section lexical-meaning">
+              <h3 className="lexical-label">Significado</h3>
+              <p>{word.meaning}</p>
+            </section>
 
-          {word.category === 'sustantivo' && (
-            <details className="regional-disclosure">
-              <summary>Variantes regionales</summary>
-              <RegionalVariantsSection word={word} />
-            </details>
-          )}
+            {word.example && (
+              <section className="lexical-section lexical-example">
+                <h3 className="lexical-label">En contexto</h3>
+                <blockquote>{word.example}</blockquote>
+                {word.collocation && (
+                  <p className="lexical-collocation">
+                    <span className="lexical-label">Colocación</span>
+                    <span>{word.collocation}</span>
+                  </p>
+                )}
+              </section>
+            )}
+
+            {word.category === 'sustantivo' && (
+              <details className="regional-disclosure">
+                <summary>Variantes regionales</summary>
+                <RegionalVariantsSection word={word} />
+              </details>
+            )}
           </>}
-          {/* Controls: Weight adjustment & Hide */}
-          <div className="lexical-adjustments flex items-center justify-between pt-2 border-t border-[#282828] text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-400 uppercase text-[11px]">Tamaño en nube:</span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onUpdateWeight(word.id, -1)}
-                  disabled={word.weight <= 1}
-                  className="p-1 border border-[#27272a] bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
-                  title="Reducir tamaño"
-                >
-                  <Minus className="w-3.5 h-3.5" />
+
+          <div className="lexical-adjustments">
+            <div className="stepper">
+              <span className="lexical-label">Tamaño en la nube</span>
+              <div className="stepper-controls">
+                <button onClick={() => onUpdateWeight(word.id, -1)} disabled={word.weight <= 1} className="icon-button" aria-label="Reducir tamaño">
+                  <Minus aria-hidden="true" />
                 </button>
-                <span className="px-2 py-0.5 border border-[#27272a] bg-[#181818] text-white font-bold">
-                  {word.weight} / 5
-                </span>
-                <button
-                  onClick={() => onUpdateWeight(word.id, 1)}
-                  disabled={word.weight >= 5}
-                  className="p-1 border border-[#27272a] bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 cursor-pointer"
-                  title="Aumentar tamaño"
-                >
-                  <Plus className="w-3.5 h-3.5" />
+                <span className="stepper-value tabular-nums">{word.weight}<span>/5</span></span>
+                <button onClick={() => onUpdateWeight(word.id, 1)} disabled={word.weight >= 5} className="icon-button" aria-label="Aumentar tamaño">
+                  <Plus aria-hidden="true" />
                 </button>
               </div>
             </div>
 
-            <button
-              onClick={() => onHideWord(word.id)}
-              className="flex items-center gap-1 text-zinc-500 hover:text-zinc-400 transition-colors uppercase text-[11px] cursor-pointer"
-              title="Quitar palabra de la nube"
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Ocultar</span>
+            <button onClick={() => onHideWord(word.id)} className="text-button" title="Quitar palabra de la nube">
+              <EyeOff aria-hidden="true" />
+              <span>Ocultar de la nube</span>
             </button>
           </div>
         </div>

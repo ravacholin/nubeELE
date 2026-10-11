@@ -68,89 +68,56 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       ref={dialogRef} tabIndex={-1} role="dialog"
       aria-modal="true"
       aria-labelledby="export-title"
-      className="utility-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="utility-overlay"
       onClick={onClose}
     >
-      <div
-        className="utility-sheet w-full max-w-lg bg-[#111111] border border-[#27272a] shadow-2xl overflow-hidden font-mono"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#282828] bg-[#141414]">
+      <div className="utility-sheet" onClick={(e) => e.stopPropagation()}>
+        <header className="utility-header">
           <div>
-            <h3 id="export-title" className="text-xs font-bold uppercase tracking-wider text-white">
-              Exportar léxico de clase
-            </h3>
-            <span className="text-[10px] text-zinc-400">
-              {words.length} palabras recopiladas
-            </span>
+            <p className="eyebrow"><span>Exportar</span><span>{String(words.length).padStart(2, '0')} palabras</span></p>
+            <h3 id="export-title">Léxico de clase</h3>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar exportación"
-            className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} aria-label="Cerrar exportación" className="icon-button">
+            <X aria-hidden="true" />
           </button>
-        </div>
+        </header>
 
-        <div className="p-5 space-y-4 text-xs">
-          {words.some(word => word.detailsPending) && <p className="text-zinc-400">Se exportan todas las palabras y los detalles de las fichas que ya abriste.</p>}
-          <p className="text-zinc-300 font-sans leading-relaxed">
-            Comparte la lista de vocabulario con tus estudiantes por chat, documento o campus virtual.
+        <div className="utility-body">
+          <p className="utility-lead">
+            Compartí la lista con tus estudiantes por chat, documento o campus virtual.
+            {words.some(word => word.detailsPending) && ' Se incluyen los detalles de las fichas que ya abriste.'}
           </p>
 
-          <div className="space-y-2">
-            <div className="export-option flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
+          <div className="export-list">
+            <div className="export-option">
               <div>
-                <span className="font-bold text-white uppercase text-[11px] block">
-                  Formato Markdown / Ficha completa
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  Incluye palabra, categoría, nivel, definición y frase
-                </span>
+                <span className="export-name">Ficha completa</span>
+                <span className="export-desc">Markdown con categoría, nivel, definición y ejemplo.</span>
               </div>
-              <button
-                onClick={() => handleCopy(getMarkdownList(), 'md')}
-                className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                {copiedFormat === 'md' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <button onClick={() => handleCopy(getMarkdownList(), 'md')} className="button-primary">
+                {copiedFormat === 'md' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                 <span>{copiedFormat === 'md' ? 'Copiado' : 'Copiar'}</span>
               </button>
             </div>
 
-            <div className="export-option flex items-center justify-between p-3 bg-[#181818] border border-[#27272a]">
+            <div className="export-option">
               <div>
-                <span className="font-bold text-white uppercase text-[11px] block">
-                  Lista simple de palabras
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  Ideal para pegar directo en Zoom o Teams
-                </span>
+                <span className="export-name">Lista simple</span>
+                <span className="export-desc">Para pegar directo en Zoom, Meet o Teams.</span>
               </div>
-              <button
-                onClick={() => handleCopy(getSimpleList(), 'simple')}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                {copiedFormat === 'simple' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <button onClick={() => handleCopy(getSimpleList(), 'simple')} className="button-secondary">
+                {copiedFormat === 'simple' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                 <span>{copiedFormat === 'simple' ? 'Copiado' : 'Copiar'}</span>
               </button>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[#282828] flex items-center justify-between">
-            <button
-              onClick={handleDownloadText}
-              className="flex items-center gap-1.5 text-zinc-400 hover:text-white uppercase text-[11px] transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
+          <div className="utility-footer">
+            <button onClick={handleDownloadText} className="text-button">
+              <Download aria-hidden="true" />
               <span>Descargar .md</span>
             </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white uppercase text-[11px] font-bold transition-colors cursor-pointer"
-            >
-              Cerrar
-            </button>
+            <button onClick={onClose} className="text-button is-strong">Cerrar</button>
           </div>
         </div>
       </div>

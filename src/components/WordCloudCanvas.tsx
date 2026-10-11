@@ -2,24 +2,10 @@ import type { DetailState } from './WordDetailsStatus';
 import { packCloudBoxes } from '../utils/cloudLayout';
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { WordItem, LayoutMode, ColorPalette } from '../types';
-import {
-  playSpanishSpeech,
-  prefetchSpanishAudio,
-  setPreferredVoice,
-  getPreferredVoice,
-} from '../utils/audio';
+import { playSpanishSpeech, prefetchSpanishAudio } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
-import {
-  Volume2,
-  VolumeX,
-  GripHorizontal,
-  Plus,
-  Check,
-  RotateCcw,
-  Sparkles,
-  Shuffle,
-  Activity,
-} from 'lucide-react';
+import { Volume2, Plus, Check, RotateCcw, Shuffle, List } from 'lucide-react';
+import { usePresence } from '../hooks/usePresence';
 import { InteractiveWordCard } from './InteractiveWordCard';
 
 interface WordCloudCanvasProps {
@@ -462,10 +448,17 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   };
 
   // Re-scramble / Reorganize physics impulse
+  const [isArranging, setIsArranging] = useState(false);
+  const arrangeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(arrangeTimer.current), []);
   const handleReorganize = () => {
     layoutSeed.current += 1.7;
     const reordered = layoutNodesCollisionFree(words);
+    // Glide tags to their new places instead of jumping.
+    setIsArranging(true);
     setNodes(reordered);
+    clearTimeout(arrangeTimer.current);
+    arrangeTimer.current = setTimeout(() => setIsArranging(false), 720);
   };
 
   // Pronounce word with high-fidelity Studio Neural Gemini TTS (Single natural voice)
@@ -492,431 +485,112 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     handlePronounce(word.word, word.id);
   };
 
-  // Grouped words for categories view
-  const categorizedWords = useMemo(() => {
-    const groups: Record<string, WordItem[]> = {
-      Sustantivos: [],
-      Verbos: [],
-      Adjetivos: [],
-      Expresiones: [],
-      Otros: [],
-    };
-
-    words.forEach((w) => {
-      if (w.category === 'sustantivo') groups.Sustantivos.push(w);
-      else if (w.category === 'verbo') groups.Verbos.push(w);
-      else if (w.category === 'adjetivo') groups.Adjetivos.push(w);
-      else if (w.category === 'expresion') groups.Expresiones.push(w);
-      else groups.Otros.push(w);
-    });
-
-    return Object.entries(groups).filter(([_, list]) => list.length > 0);
-  }, [words]);
-
   const currentIndex = selectedWord ? words.findIndex((w) => w.id === selectedWord.id) : 0;
+  const { rendered: inspectedWord, closing: inspectorClosing } = usePresence(selectedWord, 260);
 
-  // Category Tag Badge Helper
-  const getCategoryBadge = (category: string) => {
-    switch (category) {
-      case 'sustantivo':
-        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[sust]</span>;
-      case 'verbo':
-        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[verb]</span>;
-      case 'adjetivo':
-        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[adj]</span>;
-      case 'expresion':
-        return <span className="text-[9px] sm:text-[10px] text-zinc-400 font-mono tracking-wider">[expr]</span>;
-      default:
-        return null;
-    }
-  };
+  const inspector = inspectedWord && (
+    <InteractiveWordCard
+      word={inspectedWord}
+      closing={inspectorClosing}
+      detailState={detailState}
+      totalWords={words.length}
+      currentIndex={currentIndex >= 0 ? currentIndex : 0}
+      onClose={onCloseSelectedWord}
+      onPrev={onPrevWord}
+      onNext={onNextWord}
+      onOpenFullDetail={onOpenFullDetail}
+      onToggleFavorite={onToggleFavorite}
+    />
+  );
 
-  // Render Empty Chalkboard / Whiteboard State (Brutalist Dark Minimalist)
+  // Empty board: a quiet sheet with a single invitation to start again.
   if (words.length === 0) {
     return (
-      <div
-        ref={containerRef}
-        className={`relative w-full flex flex-col items-center justify-center p-6 sm:p-8 text-center select-none bg-[#0c0c0c] ${
-          isPresentationMode ? 'h-full min-h-[640px]' : 'min-h-[460px] sm:min-h-[520px] md:min-h-[580px]'
-        }`}
-      >
-        <div className="relative z-10 max-w-md mx-auto space-y-4">
-          <div className="w-12 h-12 mx-auto bg-[#181818] border border-[#27272a] flex items-center justify-center text-zinc-300">
-            <span className="font-mono text-xs font-bold uppercase tracking-widest text-zinc-400">ELE</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <h3 className="text-base sm:text-lg font-bold text-white font-mono uppercase tracking-wider">
-              Pizarra vacía
-            </h3>
-            <p className="text-xs text-zinc-400 font-sans leading-relaxed max-w-sm mx-auto">
-              La pizarra está limpia para la clase. Genera un nuevo campo léxico usando el buscador superior o selecciona un tema sugerido.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-
-            {hasRestorableWords && onRestoreWords && (
-              <button
-                onClick={onRestoreWords}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-200 text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Restaurar palabras</span>
-              </button>
-            )}
-          </div>
-
+      <div ref={containerRef} className="empty-board" style={{ minHeight: isPresentationMode ? 640 : dimensions.width < 640 ? 420 : 520 }}>
+        <div className="empty-board-inner">
+          <p className="eyebrow"><span>Pizarra</span><span>Vacía</span></p>
+          <h3 className="empty-title">Una página <em>en blanco.</em></h3>
+          <p className="empty-text">
+            Generá un campo léxico nuevo desde el buscador o empezá por uno de estos temas.
+          </p>
           {onQuickTopic && (
-            <div className="pt-4 border-t border-[#242424]">
-              <span className="text-[11px] text-zinc-400 font-mono uppercase tracking-widest block mb-2">
-                Temas rápidos:
-              </span>
-              <div className="flex flex-wrap justify-center gap-1.5 font-mono">
-                {[
-                  { label: 'Verduras', query: 'verduras' },
-                  { label: 'Cocinar', query: 'cocinar' },
-                  { label: 'Emociones', query: 'emociones' },
-                  { label: 'Ciudad', query: 'ciudad' },
-                ].map((t) => (
-                  <button
-                    key={t.query}
-                    onClick={() => onQuickTopic(t.query)}
-                    className="px-2.5 py-1 text-xs border border-[#27272a] bg-[#181818] hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+            <div className="chip-row is-centered">
+              {['verduras', 'cocinar', 'emociones', 'ciudad'].map((topic) => (
+                <button key={topic} onClick={() => onQuickTopic(topic)} className="chip">
+                  {topic}
+                </button>
+              ))}
             </div>
+          )}
+          {hasRestorableWords && onRestoreWords && (
+            <button onClick={onRestoreWords} className="text-button">
+              <RotateCcw aria-hidden="true" />
+              <span>Restaurar palabras</span>
+            </button>
           )}
         </div>
       </div>
     );
   }
 
-  // Render Categorized View (Brutalist Dark)
-  if (layoutMode === 'categories') {
-    return (
-      <div className="w-full p-3 sm:p-6 md:p-8 min-h-[460px] sm:min-h-[520px] relative bg-[#0c0c0c]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {categorizedWords.map(([category, items]) => (
-            <div
-              key={category}
-              className="bg-[#151515] border border-[#27272a] p-3.5 sm:p-4 flex flex-col"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-[#282828] mb-3">
-                <h4 className="font-bold text-white text-xs font-mono uppercase tracking-wider">
-                  {category}
-                </h4>
-                <span className="text-xs text-zinc-400 font-mono">
-                  [{items.length}]
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {items.map((item) => {
-                  const isSelected = selectedWord?.id === item.id;
-                  const itemArticle = getValidArticle(item.category, item.article);
-                  const itemDisplay = cleanDisplayWord(item.lemma || item.word);
-                  const isPlaying = playingWordId === item.id;
-
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => handleWordClick(item)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          handleWordClick(item);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      className={`group flex items-center gap-1.5 px-2.5 py-1.5 border text-xs font-mono transition-all text-left cursor-pointer select-none ${
-                        isSelected
-                          ? 'bg-white text-black border-white font-bold'
-                          : 'bg-[#181818] border-[#27272a] text-zinc-200 hover:border-zinc-500 hover:text-white'
-                      }`}
-                    >
-                      {itemArticle && (
-                        <span className="text-zinc-500 text-[11px] font-normal">{itemArticle}</span>
-                      )}
-                      <div className="flex items-center gap-1 shrink-0 ml-auto">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleFavorite?.(item.id);
-                          }}
-                          className={`p-0.5 transition-all cursor-pointer ${
-                            item.isFavorite
-                              ? 'text-zinc-400 opacity-100'
-                              : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-zinc-400'
-                          }`}
-                          title={item.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
-                        >
-                          {item.isFavorite ? (
-                            <Check className="w-3.5 h-3.5 text-zinc-400" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => handleQuickAudio(e, item)}
-                          className={`p-0.5 transition-opacity cursor-pointer ${
-                            isPlaying
-                              ? 'text-zinc-400 opacity-100 animate-pulse'
-                              : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-white'
-                          }`}
-                          title="Pronunciación estudio IA"
-                        >
-                          <Volume2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {selectedWord && (
-          <InteractiveWordCard
-            key={selectedWord.id}
-            word={selectedWord}
-            detailState={detailState}
-            totalWords={words.length}
-            currentIndex={currentIndex >= 0 ? currentIndex : 0}
-            onClose={onCloseSelectedWord}
-            onPrev={onPrevWord}
-            onNext={onNextWord}
-            onOpenFullDetail={onOpenFullDetail}
-            onToggleFavorite={onToggleFavorite}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Render Cards Grid View (Brutalist Dark)
-  if (layoutMode === 'cards') {
-    return (
-      <div className="w-full p-3 sm:p-6 md:p-8 min-h-[460px] sm:min-h-[520px] relative bg-[#0c0c0c]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
-          {words.map((w) => {
-            const isSelected = selectedWord?.id === w.id;
-            const validArt = getValidArticle(w.category, w.article);
-            const isPlaying = playingWordId === w.id;
-
-            return (
-              <div
-                key={w.id}
-                onClick={() => handleWordClick(w)}
-                className={`cursor-pointer p-3.5 sm:p-4 border transition-all flex flex-col justify-between ${
-                  isSelected
-                    ? 'bg-white text-black border-white'
-                    : 'bg-[#151515] border-[#27272a] hover:border-zinc-500 text-zinc-200'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between text-xs font-mono mb-2">
-                    <span className={`uppercase text-[10px] tracking-wider ${isSelected ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                      {w.category}
-                    </span>
-                    <span className={`px-1 py-0.5 text-[10px] font-bold border ${
-                      isSelected ? 'border-black text-black' : 'border-zinc-700 text-zinc-300'
-                    }`}>
-                      {w.level}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between mb-2">
-                    <h4 className="text-base font-bold font-mono uppercase tracking-wide">
-                      {validArt && <span className="font-normal opacity-60 mr-1">{validArt}</span>}
-                      {cleanDisplayWord(w.lemma || w.word)}
-                    </h4>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleFavorite?.(w.id);
-                        }}
-                        className={`p-1 transition-colors cursor-pointer ${
-                          w.isFavorite
-                            ? 'text-zinc-400'
-                            : isSelected
-                            ? 'text-black hover:text-zinc-700'
-                            : 'text-zinc-400 hover:text-zinc-400'
-                        }`}
-                        title={w.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
-                      >
-                        {w.isFavorite ? (
-                          <Check className="w-4 h-4 text-zinc-400" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => handleQuickAudio(e, w)}
-                        className={`p-1 transition-colors cursor-pointer ${
-                          isPlaying
-                            ? 'text-zinc-400 animate-pulse'
-                            : isSelected
-                            ? 'text-black'
-                            : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title="Pronunciación estudio IA"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <p className={`text-xs line-clamp-2 leading-relaxed mb-2 font-sans ${
-                    isSelected ? 'text-zinc-800' : 'text-zinc-300'
-                  }`}>
-                    {w.meaning}
-                  </p>
-                </div>
-
-                {w.example && (
-                  <p className={`text-[11px] italic font-sans border-t pt-2 line-clamp-1 ${
-                    isSelected ? 'border-zinc-300 text-zinc-700' : 'border-[#282828] text-zinc-400'
-                  }`}>
-                    "{w.example}"
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {selectedWord && (
-          <InteractiveWordCard
-            key={selectedWord.id}
-            word={selectedWord}
-            detailState={detailState}
-            totalWords={words.length}
-            currentIndex={currentIndex >= 0 ? currentIndex : 0}
-            onClose={onCloseSelectedWord}
-            onPrev={onPrevWord}
-            onNext={onNextWord}
-            onOpenFullDetail={onOpenFullDetail}
-            onToggleFavorite={onToggleFavorite}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Render Mobile Mosaico Flow Cloud View (Guaranteed 100% visible on small screens)
+  // Mobile mosaic: an indexed list so every word stays legible on small screens.
   if (mobileViewStyle === 'mosaico') {
     return (
-      <div
-        ref={containerRef}
-        className="w-full p-4 min-h-[460px] bg-[#0c0c0c] relative flex flex-col justify-between"
-      >
-        {/* Top mini bar with switch back to canvas */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#242424] text-xs font-mono">
-          <span className="text-[10px] text-zinc-500">Tocá una palabra</span>
-          <button
-            onClick={() => setMobileViewStyle('canvas')}
-            className="flex items-center gap-1 px-2.5 py-1 border border-[#27272a] bg-[#181818] text-zinc-300 hover:text-white text-[10px] uppercase font-bold tracking-wider cursor-pointer"
-          >
-            <span>Ver flotante</span>
+      <div ref={containerRef} className="mosaic">
+        <div className="mosaic-bar">
+          <span className="eyebrow"><span>Lista</span><span>Tocá una palabra</span></span>
+          <button onClick={() => setMobileViewStyle('canvas')} className="text-button">
+            Ver nube
           </button>
         </div>
 
-        {/* Cloud Tags wrap container - perfectly fits mobile screen */}
-        <div className="flex-1 py-5 grid grid-cols-2 sm:flex sm:flex-wrap items-center sm:justify-center content-center gap-2">
-          {words.map((w) => {
+        <ol className="mosaic-list">
+          {words.map((w, index) => {
             const isSelected = selectedWord?.id === w.id;
             const isPlaying = playingWordId === w.id;
             const validArt = getValidArticle(w.category, w.article);
             const displayWord = cleanDisplayWord(w.lemma || w.word);
-            const wideTile = displayWord.length > 8;
-            const sizeClass =
-              w.weight === 5
-                ? 'text-sm font-extrabold py-2 px-2'
-                : w.weight === 4
-                ? 'text-sm font-bold py-2 px-2'
-                : w.weight === 3
-                ? 'text-xs font-semibold py-2 px-2'
-                : 'text-xs font-medium py-2 px-2';
 
             return (
-              <div
-                key={w.id}
-                onClick={() => handleWordClick(w)}
-                className={`flex items-center gap-1 min-w-0 border font-mono transition-all cursor-pointer select-none ${wideTile ? 'col-span-2 sm:col-span-1' : ''} ${sizeClass} ${
-                  isSelected
-                    ? 'bg-white text-black border-white shadow-xl scale-105 ring-2 ring-white/20'
-                    : isPlaying
-                    ? 'bg-[#18181b] text-zinc-300 border-zinc-400 scale-105'
-                    : 'bg-[#151515] border-[#282828] text-zinc-200 hover:border-zinc-500'
-                }`}
-              >
-                {validArt && (
-                  <span className="text-[0.75em] opacity-60 font-normal">{validArt}</span>
-                )}
-                <span className="uppercase tracking-tight min-w-0 break-words">
-                  {displayWord}
-                </span>
-                <div className="flex items-center gap-3 shrink-0 ml-auto">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleFavorite?.(w.id);
-                    }}
-                    className={`relative before:absolute before:-inset-1.5 before:content-[''] p-0 transition-colors cursor-pointer ${
-                      w.isFavorite
-                        ? 'text-zinc-400'
-                        : isSelected
-                        ? 'text-black hover:text-zinc-700'
-                        : 'text-zinc-400 hover:text-zinc-400'
-                    }`}
-                    title={w.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
-                  >
-                    {w.isFavorite ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                  </button>
-                  <button
-                    onClick={(e) => handleQuickAudio(e, w)}
-                    className={`relative before:absolute before:-inset-1.5 before:content-[''] p-0 transition-colors cursor-pointer ${
-                      isPlaying
-                        ? 'text-zinc-400 animate-pulse'
-                        : isSelected
-                        ? 'text-black'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                    title="Pronunciación"
-                  >
-                    <Volume2 className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
+              <li key={w.id} className="mosaic-item" style={{ '--i': Math.min(index, 24) } as React.CSSProperties}>
+                <button
+                  onClick={() => handleWordClick(w)}
+                  className={`mosaic-word ${isSelected ? 'is-selected' : ''} ${isPlaying ? 'is-playing' : ''}`}
+                  data-weight={w.weight}
+                >
+                  <span className="mosaic-index">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="mosaic-text">
+                    {validArt && <span className="tag-article">{validArt}</span>}
+                    <span>{displayWord}</span>
+                  </span>
+                  <span className="mosaic-level">{w.level}</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(w.id); }}
+                  className="icon-button"
+                  aria-label={w.isFavorite ? `Quitar ${displayWord} de guardadas` : `Guardar ${displayWord}`}
+                  aria-pressed={!!w.isFavorite}
+                >
+                  {w.isFavorite ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                </button>
+                <button
+                  onClick={(e) => handleQuickAudio(e, w)}
+                  className={`icon-button ${isPlaying ? 'is-playing' : ''}`}
+                  aria-label={`Escuchar ${displayWord}`}
+                >
+                  <Volume2 aria-hidden="true" />
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ol>
 
-        {/* Selected Word Drawer */}
-        {selectedWord && (
-          <InteractiveWordCard
-            key={selectedWord.id}
-            word={selectedWord}
-            detailState={detailState}
-            totalWords={words.length}
-            currentIndex={currentIndex >= 0 ? currentIndex : 0}
-            onClose={onCloseSelectedWord}
-            onPrev={onPrevWord}
-            onNext={onNextWord}
-            onOpenFullDetail={onOpenFullDetail}
-            onToggleFavorite={onToggleFavorite}
-          />
-        )}
+        {inspector}
       </div>
     );
   }
 
-  // Floating Dynamic & Spiral Interactive Canvas View (Brutalist Dark Obsidian)
+  // Floating cloud: packed tags that can be dragged and rearranged.
   return (
     <div
       ref={containerRef}
@@ -925,46 +599,34 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       onMouseLeave={handleMouseLeave}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleMouseUp}
-      className={`tag-canvas relative w-full overflow-hidden select-none transition-colors duration-300 bg-[#0c0c0c] touch-pan-y ${
-        isPresentationMode ? 'h-full min-h-[640px]' : 'min-h-[480px] md:min-h-[600px]'
-      }`}
+      className={`tag-canvas ${isArranging ? 'is-arranging' : ''} ${selectedWord ? 'has-selection' : ''}`}
       style={{
         minHeight: Math.max(layoutHeight, isPresentationMode ? 640 : dimensions.width < 640 ? 440 : 520),
         cursor: draggingNodeRef.current ? 'grabbing' : 'default',
-        backgroundImage: `radial-gradient(#242424 0.7px, transparent 0.7px)`,
-        backgroundSize: '32px 32px',
       }}
     >
-      {/* Top Floating Mini-Toolbar: Voice profile & Physics controls */}
-      <div className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 z-20 flex flex-wrap items-center justify-end gap-2 pointer-events-none">
-        {/* Dynamic Physics Controls & Mobile Mode Switch */}
-        <div className="canvas-tools pointer-events-auto flex items-center gap-1.5 bg-[#151515]/90 backdrop-blur-sm border border-[#27272a] p-1 text-xs font-mono">
-          {dimensions.width < 640 && (
-            <button
-              onClick={() => setMobileViewStyle('mosaico')}
-              className="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider bg-white text-black transition-colors cursor-pointer"
-              title="Ver todas las palabras en un mosaico adaptado al móvil"
-            >
-              Mosaico
-            </button>
-          )}
+      <div className="canvas-tools">
+        {dimensions.width < 640 && (
           <button
-            onClick={handleReorganize}
-            className="flex items-center gap-1 px-2 py-0.5 text-[11px] uppercase tracking-wider text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
-            title="Reorganizar posición de palabras sin solapamiento"
+            onClick={() => setMobileViewStyle('mosaico')}
+            title="Ver todas las palabras en una lista"
           >
-            <Shuffle className="w-3 h-3 text-zinc-400" />
-            <span className="hidden sm:inline">Reorganizar</span>
+            <List aria-hidden="true" />
+            <span>Lista</span>
           </button>
-        </div>
+        )}
+        <button onClick={handleReorganize} title="Reorganizar las palabras">
+          <Shuffle aria-hidden="true" />
+          <span>Reorganizar</span>
+        </button>
       </div>
 
-      {/* Physics Interactive Cloud Nodes */}
-      {nodes.map((node) => {
+      {nodes.map((node, index) => {
         const isHovered = hoveredWordId === node.id;
         const isSelected = selectedWord?.id === node.id;
         const isPlaying = playingWordId === node.id;
         const validArt = getValidArticle(node.word.category, node.word.article);
+        const displayWord = cleanDisplayWord(node.word.lemma || node.word.word);
 
         return (
           <div
@@ -976,70 +638,51 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             onTouchEnd={(e) => handleTouchEnd(e, node)}
             onMouseEnter={() => setHoveredWordId(node.id)}
             onMouseLeave={() => setHoveredWordId(null)}
+            data-weight={node.word.weight}
+            data-dragging={node.isDragging || undefined}
             style={{
               transform: `translate3d(${node.x}px, ${node.y}px, 0)`,
               fontSize: `${node.fontSize}px`,
               width: node.width,
               height: node.height,
-              color: isSelected ? '#000000' : node.color,
               touchAction: 'none',
-            }}
-            className={`cloud-node absolute top-0 left-0 select-none leading-none group focus-within:z-30 will-change-transform transition-[border-color,background-color,box-shadow] duration-150 ${
-              isSelected ? 'z-30 cursor-pointer' : isHovered ? 'z-20 cursor-grab' : 'z-10 cursor-pointer'
-            }`}
+              '--i': Math.min(index, 30),
+            } as React.CSSProperties}
+            className={`cloud-node group ${isSelected ? 'is-selected' : ''} ${isHovered ? 'is-hovered' : ''}`}
           >
             <button
               type="button"
-              aria-label={`Ver ficha: ${cleanDisplayWord(node.word.lemma || node.word.word)}`}
-              className={`cloud-tag w-full h-full flex items-center justify-center gap-1.5 font-sans font-semibold border cursor-pointer ${
-                isSelected ? 'is-selected' : isPlaying ? 'is-playing' : ''
-              }`}
+              aria-label={`Ver ficha: ${displayWord}`}
+              className={`cloud-tag ${isSelected ? 'is-selected' : ''} ${isPlaying ? 'is-playing' : ''}`}
             >
-              {validArt && <span className="text-[0.62em] font-normal opacity-60">{validArt}</span>}
-              <span className="whitespace-nowrap">{cleanDisplayWord(node.word.lemma || node.word.word)}</span>
+              {validArt && <span className="tag-article">{validArt}</span>}
+              <span className="tag-word">{displayWord}</span>
             </button>
-            <div onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()} className="tag-actions pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto hidden sm:flex absolute right-0 -bottom-8 z-30 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 bg-[#161616] border border-zinc-700">
+            <div onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()} className="tag-actions">
               <button
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(node.word.id); }}
-                className="w-8 h-8 flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
-                title={node.word.isFavorite ? 'Palabra guardada (clic para quitar)' : 'Guardar palabra (+)'}
+                title={node.word.isFavorite ? 'Quitar de guardadas' : 'Guardar palabra'}
+                aria-label={node.word.isFavorite ? `Quitar ${displayWord} de guardadas` : `Guardar ${displayWord}`}
               >
-                {node.word.isFavorite ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                {node.word.isFavorite ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
               </button>
               <button
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => handleQuickAudio(e, node.word)}
-                className="w-8 h-8 flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
-                title="Pronunciación de estudio IA"
+                title="Escuchar pronunciación"
+                aria-label={`Escuchar ${displayWord}`}
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 aria-hidden="true" />
               </button>
             </div>
-
           </div>
         );
       })}
 
-      {/* Interactive Word Inspector Card - ALWAYS active */}
-      {selectedWord && (
-        <InteractiveWordCard
-            key={selectedWord.id}
-          word={selectedWord}
-          detailState={detailState}
-          totalWords={words.length}
-          currentIndex={currentIndex >= 0 ? currentIndex : 0}
-          onClose={onCloseSelectedWord}
-          onPrev={onPrevWord}
-          onNext={onNextWord}
-          onOpenFullDetail={onOpenFullDetail}
-          onToggleFavorite={onToggleFavorite}
-        />
-      )}
+      {inspector}
 
-      {/* Floating Canvas Guide Note */}
-      <div className="canvas-guide absolute bottom-2 sm:bottom-3 right-2 sm:right-4 pointer-events-none text-[10px] sm:text-[11px] text-zinc-400 font-mono uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 bg-[#0c0c0c]/85 px-2 py-1 border border-[#242424]">
-        <GripHorizontal className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+      <div className="canvas-guide" aria-hidden="true">
         <span className="hidden sm:inline">Arrastrá para ordenar · Elegí una palabra para explorar</span>
         <span className="sm:hidden">Tocá para explorar · Arrastrá para ordenar</span>
       </div>

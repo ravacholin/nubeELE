@@ -6,7 +6,7 @@ import {
   removeStoredApiKey,
   getMaskedApiKey,
 } from '../utils/apiKeyStorage';
-import { KeyRound, ShieldCheck, Eye, EyeOff, Trash2, RotateCw, X, Clipboard, Check, ExternalLink } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff, Trash2, RotateCw, X, Clipboard, Check, ExternalLink } from 'lucide-react';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -191,26 +191,26 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
   return (
     <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="api-key-title"
-      className="utility-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs"
+      className="utility-overlay"
       onClick={onClose}>
-      <div className="utility-sheet w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-[#101012] border border-zinc-700 shadow-2xl"
+      <div className="utility-sheet"
         onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between p-5 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-zinc-400" />
-            <h2 id="api-key-title" className="font-mono text-sm font-bold uppercase tracking-wider">API key</h2>
+        <header className="utility-header">
+          <div>
+            <p className="eyebrow"><span>Ajustes</span><span>{currentKey ? 'Conectada' : 'Sin conectar'}</span></p>
+            <h2 id="api-key-title">API key de Gemini</h2>
           </div>
-          <button onClick={onClose} aria-label="Cerrar API key" className="p-2 text-zinc-400 hover:text-white cursor-pointer">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} aria-label="Cerrar API key" className="icon-button">
+            <X aria-hidden="true" />
           </button>
         </header>
 
-        <div className="p-5 space-y-6">
+        <div className="utility-body space-y-6">
           <p className="text-sm text-zinc-400 leading-relaxed">Conectá Gemini para generar vocabulario sobre cualquier tema.</p>
 
           {statusMessage && (
-            <div role="status" aria-live="polite" className={`p-3 border text-xs leading-relaxed ${
-              statusMessage.type === 'error' ? 'border-rose-900 text-rose-300' : 'border-zinc-700 text-zinc-200'
+            <div role="status" aria-live="polite" className={`status-note ${
+              statusMessage.type === 'error' ? 'is-error' : ''
             }`}>{statusMessage.text}</div>
           )}
 
@@ -232,7 +232,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               <div className="flex justify-between gap-3 text-xs">
                 <button onClick={handleTestExistingKey} disabled={isValidating}
                   className="text-zinc-300 hover:text-white disabled:opacity-40 cursor-pointer py-2">Probar conexión</button>
-                <button onClick={handleRemoveKey} className="flex items-center gap-1.5 text-zinc-500 hover:text-rose-300 cursor-pointer py-2">
+                <button onClick={handleRemoveKey} className="flex items-center gap-1.5 text-zinc-500 hover:text-white cursor-pointer py-2">
                   <Trash2 className="w-3 h-3" />Eliminar API key
                 </button>
               </div>
@@ -254,7 +254,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               </button>
             </div>
             <button type="submit" disabled={isValidating || !inputKey.trim()}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-white text-black text-xs font-mono font-bold uppercase tracking-wider hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500 cursor-pointer">
+              className="button-primary w-full">
               {isValidating && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
               {isValidating ? 'Verificando…' : currentKey ? 'Guardar cambio' : 'Guardar y verificar'}
             </button>
