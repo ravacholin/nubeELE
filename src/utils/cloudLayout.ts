@@ -14,7 +14,7 @@ export function packCloudBoxes(boxes: CloudBox[], width: number, initialHeight: 
   for (;;) {
     for (let attempt = 0; attempt < 4; attempt++) {
       const positions: CloudPosition[] = [];
-      const centerX = width * (width < 640 ? [0.6, 0.4, 0.52, 0.48] : [0.5, 0.55, 0.45, 0.6])[attempt];
+      const centerX = width * (width < 640 ? [0.5, 0.46, 0.54, 0.5] : [0.5, 0.55, 0.45, 0.6])[attempt];
       const centerY = height / 2;
       const fits = (x: number, y: number, box: CloudBox) =>
         x >= margin && x + box.width <= width - margin && y >= 52 && y + box.height <= height - 40 &&

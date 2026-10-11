@@ -24,8 +24,8 @@ import {
   ArrowRight,
   ArrowUpRight,
   Maximize2,
-  Minimize2,
   RotateCcw,
+  Search,
   Bookmark,
   KeyRound,
   Share,
@@ -61,6 +61,7 @@ function withViewTransition(update: () => void) {
 export default function App() {
   const cloudRequestId = useRef(0);
   const [topicInput, setTopicInput] = useState('');
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
   const [currentTopic, setCurrentTopic] = useState('verduras');
   const [selectedLevel, setSelectedLevel] = useState('Todos');
 
@@ -357,156 +358,129 @@ export default function App() {
   };
 
   const levelLabel = selectedLevel === 'Todos' ? 'A1—C1' : selectedLevel;
-  const wordCount = String(words.length).padStart(2, '0');
+  const runTopic = (topic: string) => {
+    setTopicInput(topic);
+    setIsSuggestOpen(false);
+    fetchCloud(topic, selectedLevel);
+  };
 
   return (
     <div className="app-shell" data-presenting={isPresentationMode || undefined}>
       <header className="app-header">
-        <div className="shell-row">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              fetchCloud('verduras');
-            }}
-            className="brand"
-            title="Volver al tema inicial"
-          >
-            <span className="brand-mark" aria-hidden="true">N</span>
-            <span className="brand-name">Nube<span>ELE</span></span>
-            <span className="brand-tagline">Léxico interactivo</span>
-          </a>
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            fetchCloud('verduras');
+          }}
+          className="brand"
+          title="Volver al tema inicial"
+        >
+          <span className="brand-mark" aria-hidden="true">N</span>
+          <span className="brand-name">Nube<span>ELE</span></span>
+        </a>
 
-          <nav className="nav-actions" aria-label="Acciones">
-            <button
-              onClick={() => setShowOnlySaved(!showOnlySaved)}
-              className="nav-link"
-              title="Mostrar solo las palabras guardadas"
-              aria-label="Palabras guardadas"
-              aria-pressed={showOnlySaved}
-            >
-              <Bookmark className="nav-icon" aria-hidden="true" />
-              <span className="nav-label">Guardadas</span>
-              <span className="nav-count">{savedWordsList.length}</span>
-            </button>
-
-            <button
-              onClick={() => setIsApiKeyModalOpen(true)}
-              className="nav-link"
-              title="Configurar API key de Gemini"
-              aria-label="API key"
-            >
-              <KeyRound className="nav-icon" aria-hidden="true" />
-              <span className="nav-label">API key</span>
-              <span className="status-dot" data-on={hasCustomApiKey || undefined} aria-hidden="true" />
-            </button>
-
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="nav-link"
-              title="Exportar vocabulario para alumnos"
-              aria-label="Exportar vocabulario"
-            >
-              <Share className="nav-icon" aria-hidden="true" />
-              <span className="nav-label">Exportar</span>
-            </button>
-
-            <button
-              onClick={() => togglePresentation()}
-              className="nav-primary"
-              title="Modo pantalla completa para proyector o Zoom"
-              aria-label={isPresentationMode ? 'Salir de pizarra' : 'Modo pizarra'}
-            >
-              <span className="nav-label">{isPresentationMode ? 'Salir' : 'Pizarra'}</span>
-              {isPresentationMode ? <Minimize2 className="nav-icon" aria-hidden="true" /> : <Maximize2 className="nav-icon" aria-hidden="true" />}
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="workspace">
-        {!isPresentationMode && (
-          <section className="compose-panel" aria-labelledby="intro-title">
-            <div className="intro">
-              <p className="eyebrow intro-eyebrow">
-                <span>N° 01</span>
-                <span>Un espacio para el vocabulario</span>
-              </p>
-              <h1 id="intro-title" className="intro-title">
-                El español, <em>en palabras.</em>
-              </h1>
-              <div className="intro-aside">
-                <p className="intro-description">
-                  Explorá, escuchá y enseñá español: una nube de léxico por tema, con fichas, voz y variantes regionales.
-                </p>
-                <dl className="intro-meta">
-                  <div><dt>Lengua</dt><dd>ELE</dd></div>
-                  <div><dt>Niveles</dt><dd>A1—C1</dd></div>
-                </dl>
-              </div>
-            </div>
-
-            <form onSubmit={handleSearchSubmit} className="compose-form">
-              <label className="field topic-field">
-                <span className="field-label">Tema</span>
-                <input
-                  type="text"
-                  value={topicInput}
-                  onChange={(e) => setTopicInput(e.target.value)}
-                  placeholder="¿Qué querés explorar?"
-                  aria-label="Tema de la nube"
-                  className="topic-input"
-                  enterKeyHint="go"
-                />
-              </label>
-
-              <label className="field level-field">
-                <span className="field-label">Nivel</span>
-                <select
-                  value={selectedLevel}
-                  aria-label="Nivel MCER"
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="level-select"
-                >
-                  {LEVELS.map(level => (
-                    <option key={level} value={level}>{level === 'Todos' ? 'Todos' : level}</option>
-                  ))}
-                </select>
-              </label>
-
-              <button type="submit" disabled={isLoading} className="generate-button" data-loading={isLoading || undefined}>
-                <span>{isLoading ? 'Generando' : 'Generar'}</span>
-                <ArrowRight className="generate-icon" aria-hidden="true" />
-              </button>
-            </form>
-
-            <div className="topic-explorer">
-              <span className="row-label">Sugerencias</span>
-              <ul className="topic-list">
+        <form onSubmit={handleSearchSubmit} className="command-bar" role="search">
+          <div className="command-field">
+            <Search className="command-icon" aria-hidden="true" />
+            <input
+              type="text"
+              value={topicInput}
+              onChange={(e) => setTopicInput(e.target.value)}
+              onFocus={() => setIsSuggestOpen(true)}
+              onBlur={() => setIsSuggestOpen(false)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setIsSuggestOpen(false); e.currentTarget.blur(); } }}
+              placeholder="Tema de vocabulario…"
+              aria-label="Tema de la nube"
+              aria-expanded={isSuggestOpen}
+              aria-controls="topic-suggestions"
+              className="topic-input"
+              enterKeyHint="go"
+              autoComplete="off"
+            />
+            {isSuggestOpen && (
+              <ul id="topic-suggestions" className="suggest-panel" role="listbox" aria-label="Temas sugeridos">
                 {SUGGESTED_TEMPLATES.map((tmpl, index) => (
-                  <li key={tmpl.query}>
+                  <li key={tmpl.query} role="option" aria-selected={currentTopic === tmpl.query}>
                     <button
-                      onClick={() => {
-                        setTopicInput(tmpl.query);
-                        fetchCloud(tmpl.query, selectedLevel);
-                      }}
-                      aria-pressed={currentTopic === tmpl.query}
-                      className="topic-chip"
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => runTopic(tmpl.query)}
+                      className="suggest-item"
                     >
-                      <span className="topic-index">{String(index + 1).padStart(2, '0')}</span>
-                      <span>{tmpl.label}</span>
-                      <span className="topic-tag">{tmpl.tag}</span>
+                      <span className="suggest-index">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="suggest-label">{tmpl.label}</span>
+                      <span className="suggest-tag">{tmpl.tag}</span>
                     </button>
                   </li>
                 ))}
               </ul>
-            </div>
-          </section>
-        )}
+            )}
+          </div>
 
+          <select
+            value={selectedLevel}
+            aria-label="Nivel MCER"
+            onChange={(e) => setSelectedLevel(e.target.value)}
+            className="level-select"
+          >
+            {LEVELS.map(level => (
+              <option key={level} value={level}>{level === 'Todos' ? 'A1—C1' : level}</option>
+            ))}
+          </select>
+
+          <button type="submit" disabled={isLoading} className="generate-button" data-loading={isLoading || undefined} aria-label="Generar nube">
+            <span className="generate-label">{isLoading ? 'Generando' : 'Generar'}</span>
+            <ArrowRight className="generate-icon" aria-hidden="true" />
+          </button>
+        </form>
+
+        <nav className="nav-actions" aria-label="Acciones">
+          <button
+            onClick={() => setShowOnlySaved(!showOnlySaved)}
+            className="nav-link"
+            title="Mostrar solo las palabras guardadas"
+            aria-label="Palabras guardadas"
+            aria-pressed={showOnlySaved}
+          >
+            <Bookmark className="nav-icon" aria-hidden="true" />
+            <span className="nav-count">{savedWordsList.length}</span>
+          </button>
+          <button
+            onClick={() => setIsApiKeyModalOpen(true)}
+            className="nav-link"
+            title="Configurar API key de Gemini"
+            aria-label="API key"
+          >
+            <KeyRound className="nav-icon" aria-hidden="true" />
+            <span className="status-dot" data-on={hasCustomApiKey || undefined} aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="nav-link"
+            title="Exportar vocabulario para alumnos"
+            aria-label="Exportar vocabulario"
+          >
+            <Share className="nav-icon" aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => togglePresentation()}
+            className="nav-link"
+            title="Pizarra: pantalla completa para proyector o Zoom"
+            aria-label={isPresentationMode ? 'Salir de pizarra' : 'Modo pizarra'}
+          >
+            <Maximize2 className="nav-icon" aria-hidden="true" />
+          </button>
+        </nav>
+      </header>
+
+      <main
+        data-generating={isLoading || undefined}
+        aria-label="Nube de palabras interactiva"
+        className={`cloud-stage ${isPresentationMode ? 'presentation-stage' : ''}`}
+      >
         {errorMessage && (
           <div role="alert" className="notice">
-            <span className="notice-label">Error</span>
             <span className="notice-text">{errorMessage}</span>
             <button onClick={() => setErrorMessage(null)} className="notice-close" aria-label="Cerrar aviso">
               <X aria-hidden="true" />
@@ -514,137 +488,93 @@ export default function App() {
           </div>
         )}
 
-        <section
-          data-generating={isLoading || undefined}
-          aria-label="Nube de palabras interactiva"
-          className={`cloud-stage ${isPresentationMode ? 'presentation-stage' : ''}`}
-        >
-          <header className="cloud-header">
-            <div className="cloud-heading">
-              <p className="eyebrow">
-                <span>N° 02</span>
-                <span>{isLoading ? 'Generando nube…' : `Nube · ${levelLabel}`}</span>
-              </p>
-              <h2 key={cloudData?.title} className="cloud-title">
-                {cloudData?.title || 'Nube de palabras'}
-              </h2>
-              {cloudData?.summary && <p className="cloud-summary">{cloudData.summary}</p>}
-            </div>
-
-            <div className="cloud-meta">
-              <span className="cloud-count" aria-label={`${words.length} palabras`}>
-                <strong>{wordCount}</strong>
-                <span>palabras</span>
-              </span>
-              <div className="cloud-actions">
-                {words.length === 0 && previousWords.length > 0 ? (
-                  <button onClick={handleRestoreBoard} className="text-button" title="Restaurar las palabras borradas">
-                    <RotateCcw aria-hidden="true" />
-                    <span>Restaurar</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleClearBoard}
-                    disabled={words.length === 0}
-                    className="text-button"
-                    title="Borrar la pizarra para dejarla en blanco"
-                  >
-                    <span>Borrar</span>
-                  </button>
-                )}
-                {isPresentationMode && (
-                  <button onClick={() => togglePresentation(false)} className="text-button is-strong" title="Salir de la pizarra (Esc)">
-                    <Minimize2 aria-hidden="true" />
-                    <span>Salir</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </header>
-
-          {showOnlySaved && (
-            <div className="saved-banner">
-              <span>Guardadas · {String(displayedWords.length).padStart(2, '0')}</span>
-              <button onClick={() => setShowOnlySaved(false)} className="text-button">
-                Ver toda la nube
+        <div className="cloud-body">
+          <div className="cloud-caption">
+            <h1 key={cloudData?.title} className="cloud-title">
+              {cloudData?.title || 'Nube de palabras'}
+            </h1>
+            <span className="cloud-count" aria-label={`${displayedWords.length} palabras`}>
+              {String(displayedWords.length).padStart(2, '0')}
+            </span>
+            <span className="cloud-level">{isLoading ? 'Generando…' : showOnlySaved ? 'Guardadas' : levelLabel}</span>
+            {showOnlySaved && (
+              <button onClick={() => setShowOnlySaved(false)} className="caption-link">Ver toda la nube</button>
+            )}
+            {isPresentationMode && (
+              <button onClick={() => togglePresentation(false)} className="caption-link" title="Salir de la pizarra (Esc)">
+                Salir
               </button>
-            </div>
-          )}
-
-          <div className="cloud-body">
-            <WordCloudCanvas
-              words={displayedWords}
-              palette={activePalette}
-              layoutMode={layoutMode}
-              onSelectWord={(w) => setSelectedWord(w)}
-              selectedWord={selectedWord}
-              detailState={detailState}
-              onCloseSelectedWord={() => setSelectedWord(null)}
-              onPrevWord={handlePrevWord}
-              onNextWord={handleNextWord}
-              onOpenFullDetail={() => setIsFullModalOpen(true)}
-              isPresentationMode={isPresentationMode}
-              onRestoreWords={handleRestoreBoard}
-              hasRestorableWords={previousWords.length > 0}
-              onQuickTopic={(topic) => {
-                setTopicInput(topic);
-                fetchCloud(topic, selectedLevel);
-              }}
-              onToggleFavorite={handleToggleFavorite}
-            />
+            )}
           </div>
 
-          {!isPresentationMode && (
-            <footer className="cloud-footer">
-              <div className="footer-row">
-                <span className="row-label">Ampliar</span>
-                <div className="chip-row">
-                  {EXPANSIONS.map(({ type, label }) => (
-                    <button
-                      key={type}
-                      onClick={() => handleExpandCloud(type)}
-                      disabled={isExpanding || isLoading}
-                      className="chip"
-                    >
-                      <span aria-hidden="true">+</span>
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {cloudData?.suggestedTopics && cloudData.suggestedTopics.length > 0 && (
-                <div className="footer-row">
-                  <span className="row-label">Relacionados</span>
-                  <div className="chip-row">
-                    {cloudData.suggestedTopics.slice(0, 4).map((topic) => (
-                      <button
-                        key={topic}
-                        onClick={() => {
-                          setTopicInput(topic);
-                          fetchCloud(topic, selectedLevel);
-                        }}
-                        className="link-button"
-                      >
-                        <span>{topic}</span>
-                        <ArrowUpRight aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </footer>
-          )}
-        </section>
-      </main>
-
-      <footer className="app-footer">
-        <div className="shell-row">
-          <span className="brand-name">Nube<span>ELE</span></span>
-          <span>Español en palabras</span>
-          <span className="app-footer-meta">ELE · A1—C1</span>
+          <WordCloudCanvas
+            words={displayedWords}
+            palette={activePalette}
+            layoutMode={layoutMode}
+            onSelectWord={(w) => setSelectedWord(w)}
+            selectedWord={selectedWord}
+            detailState={detailState}
+            onCloseSelectedWord={() => setSelectedWord(null)}
+            onPrevWord={handlePrevWord}
+            onNextWord={handleNextWord}
+            onOpenFullDetail={() => setIsFullModalOpen(true)}
+            isPresentationMode={isPresentationMode}
+            onRestoreWords={handleRestoreBoard}
+            hasRestorableWords={previousWords.length > 0}
+            onQuickTopic={runTopic}
+            onToggleFavorite={handleToggleFavorite}
+          />
         </div>
-      </footer>
+
+        {!isPresentationMode && (
+          <footer className="cloud-footer">
+            <div className="footer-group">
+              <span className="row-label">Ampliar</span>
+              {EXPANSIONS.map(({ type, label }) => (
+                <button
+                  key={type}
+                  onClick={() => handleExpandCloud(type)}
+                  disabled={isExpanding || isLoading}
+                  className="bar-button"
+                >
+                  <span aria-hidden="true">+</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {cloudData?.suggestedTopics && cloudData.suggestedTopics.length > 0 && (
+              <div className="footer-group">
+                <span className="row-label">Relacionados</span>
+                {cloudData.suggestedTopics.slice(0, 4).map((topic) => (
+                  <button key={topic} onClick={() => runTopic(topic)} className="bar-button is-link">
+                    <span>{topic}</span>
+                    <ArrowUpRight aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="footer-group is-end">
+              {words.length === 0 && previousWords.length > 0 ? (
+                <button onClick={handleRestoreBoard} className="bar-button" title="Restaurar las palabras borradas">
+                  <RotateCcw aria-hidden="true" />
+                  <span>Restaurar</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleClearBoard}
+                  disabled={words.length === 0}
+                  className="bar-button"
+                  title="Borrar la pizarra para dejarla en blanco"
+                >
+                  <span>Borrar</span>
+                </button>
+              )}
+            </div>
+          </footer>
+        )}
+      </main>
 
       {isFullModalOpen && selectedWord && (
         <WordDetailModal
