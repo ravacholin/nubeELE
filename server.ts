@@ -1,5 +1,6 @@
 import { completeWords } from './src/server/partialCloud.js';
 import { runFastCascade } from './src/server/fastCascade.js';
+import { appendCloudWords, matchesCloudFocus, MAX_CLOUD_WORDS, type CloudFocus } from './src/utils/cloudWords.js';
 import 'dotenv/config';
 import express from 'express';
 import { createHash, randomUUID } from 'node:crypto';
@@ -322,6 +323,26 @@ const CURATED_SETS: Record<string, any> = {
 };
 
 // Aliases
+const CURATED_EXPANSIONS: Record<string, any[]> = {
+  cocina: [
+    { word: 'encurtir', lemma: 'encurtir', article: null, category: 'verbo', level: 'B2', weight: 3, meaning: 'Conservar alimentos en vinagre, sal u otro líquido ácido.', example: 'Podemos encurtir los pepinos con vinagre y eneldo.' },
+    { word: 'blanquear', lemma: 'blanquear', article: null, category: 'verbo', level: 'B2', weight: 3, meaning: 'Cocer brevemente un alimento en agua hirviendo y enfriarlo enseguida.', example: 'Blanquea el brócoli antes de congelarlo.' },
+    { word: 'condimentar', lemma: 'condimentar', article: null, category: 'verbo', level: 'B1', weight: 4, meaning: 'Añadir especias o condimentos a un alimento.', example: 'Condimenta las verduras con pimienta y romero.' },
+    { word: 'a fuego lento', lemma: 'a fuego lento', article: null, category: 'expresion', level: 'A2', weight: 4, meaning: 'Con calor suave, durante un tiempo prolongado.', example: 'Cocina la salsa a fuego lento durante veinte minutos.' },
+    { word: 'al dente', lemma: 'al dente', article: null, category: 'expresion', level: 'B1', weight: 3, meaning: 'En el punto de cocción en que el alimento conserva cierta firmeza.', example: 'Prefiero la pasta al dente.' },
+    { word: 'el aderezo', lemma: 'aderezo', article: 'el', category: 'sustantivo', level: 'A2', weight: 3, meaning: 'Salsa o condimento que se añade a un plato.', example: 'Prepara un aderezo de aceite, limón y mostaza.' },
+    { word: 'la juliana', lemma: 'juliana', article: 'la', category: 'sustantivo', level: 'B2', weight: 3, meaning: 'Forma de cortar alimentos en tiras finas y alargadas.', example: 'Corta la zanahoria en juliana para la ensalada.' },
+  ],
+  viajes: [
+    { word: 'reservar', lemma: 'reservar', article: null, category: 'verbo', level: 'A2', weight: 4, meaning: 'Solicitar con antelación una plaza, habitación o servicio.', example: 'Voy a reservar una habitación cerca de la estación.' },
+    { word: 'desembarcar', lemma: 'desembarcar', article: null, category: 'verbo', level: 'B1', weight: 3, meaning: 'Bajar de un barco o de otro medio de transporte.', example: 'Los pasajeros desembarcaron al llegar al puerto.' },
+    { word: 'hacer escala', lemma: 'hacer escala', article: null, category: 'expresion', level: 'B1', weight: 4, meaning: 'Detenerse en un punto intermedio durante un viaje.', example: 'El vuelo hace escala en Madrid antes de continuar a Lima.' },
+    { word: 'hacer las maletas', lemma: 'hacer las maletas', article: null, category: 'expresion', level: 'A2', weight: 3, meaning: 'Preparar el equipaje para un viaje.', example: 'Tenemos que hacer las maletas esta noche.' },
+    { word: 'el itinerario', lemma: 'itinerario', article: 'el', category: 'sustantivo', level: 'B2', weight: 3, meaning: 'Recorrido planificado con los lugares y etapas de un viaje.', example: 'Nuestro itinerario incluye tres ciudades y dos parques naturales.' },
+    { word: 'el transbordo', lemma: 'transbordo', article: 'el', category: 'sustantivo', level: 'B2', weight: 3, meaning: 'Cambio de un vehículo o medio de transporte a otro para continuar un viaje.', example: 'Hay que hacer un transbordo de tren en Córdoba.' },
+  ],
+};
+
 CURATED_SETS['cocinar'] = CURATED_SETS['verbos de coccion'];
 CURATED_SETS['cocina'] = CURATED_SETS['verbos de coccion'];
 CURATED_SETS['sentimientos'] = CURATED_SETS['emociones'];
@@ -723,7 +744,19 @@ Incluye un título breve, un resumen de una frase y tres temas relacionados. Usa
 // Endpoint: Expand Cloud (add more words)
 app.post('/api/expand-cloud', async (req, res) => {
   try {
-    const { topic, existingWords = [], expansionType = 'more' } = req.body;
+    const { topic, existingWords = [], expansionType = 'more', wordCount, replacementWords = [] } = req.body;
+    if (typeof topic !== 'string' || !topic.trim() || !Array.isArray(existingWords)
+      || !existingWords.every(word => typeof word === 'string') || !Array.isArray(replacementWords)
+      || !replacementWords.every(word => typeof word === 'string')
+      || !['more', 'verbs', 'expressions', 'advanced'].includes(expansionType)) {
+      return res.status(400).json({ success: false, error: 'Tema o selección inválidos.' });
+    }
+    const count = Number.isInteger(wordCount) ? Math.max(1, Math.min(MAX_CLOUD_WORDS, wordCount)) : 12;
+    const excluded = new Set(existingWords.map(word => word.trim().toLowerCase()));
+    const selectCandidates = (candidates: any[]) => appendCloudWords([], candidates.map(sanitizeWordObject))
+      .filter(word => matchesCloudFocus(word, expansionType as CloudFocus) && !excluded.has((word.lemma || word.word).trim().toLowerCase()))
+      .slice(0, count)
+      .map(word => ({ ...word, id: `exp_${randomUUID()}`, topicContext: topic }));
     const userApiKey = (req.headers['x-gemini-api-key'] as string) || req.body?.apiKey;
     const client = getGenAIClient(userApiKey);
 
@@ -739,7 +772,8 @@ app.post('/api/expand-cloud', async (req, res) => {
             : 'palabras complementarias y variadas para enriquecer la nube';
 
         const systemInstruction = `Eres un docente experto en ELE. Tu labor es ampliar una nube de palabras sobre el tema "${topic}".
-Genera 8 a 12 NUEVAS palabras de tipo: ${typeDescription}.
+Genera ${count} NUEVAS palabras de tipo: ${typeDescription}, siempre relacionadas con el tema.
+${replacementWords.length ? `Estas palabras sustituirán únicamente a: ${replacementWords.join(', ')}. Conserva su coherencia temática.` : ''}
 IMPORTANTE: NO repitas ninguna de estas palabras ya existentes: ${existingWords.join(', ')}.
 Reglas gramaticales estrictas:
 - El artículo ('el', 'la', 'los', 'las') es OBLIGATORIO para sustantivos y ESTÁ PROHIBIDO (debe ser null) para verbos, adjetivos y expresiones.
@@ -796,97 +830,29 @@ Cada palabra debe tener:
 
         if (cascadeRes && cascadeRes.text) {
           const parsed = JSON.parse(cascadeRes.text || '{}');
-          const newWords = (parsed.newWords || []).map(sanitizeWordObject);
-          return res.json({ success: true, newWords, modelUsed: cascadeRes.modelUsed });
+          const newWords = selectCandidates(Array.isArray(parsed.newWords) ? parsed.newWords : []);
+          if (newWords.length) return res.json({ success: true, newWords, modelUsed: cascadeRes.modelUsed });
         }
       } catch (err: any) {
         console.log('[Expand Cloud] Usando palabras complementarias didácticas');
       }
     }
 
-    // Resilient educational expansion fallback
-    const resilientAdditions = [
-      {
-        id: `exp_res_${Date.now()}_1`,
-        word: 'el matiz',
-        lemma: 'matiz',
-        article: 'el',
-        category: 'sustantivo',
-        subcategory: 'precisión',
-        level: 'B2',
-        weight: 4,
-        meaning: 'Rasgo o aspecto sutil que distingue una cosa de otra.',
-        translationEn: 'nuance / shade of meaning',
-        example: 'Aprender este matiz léxico te permite sonar mucho más natural en español.',
-        collocation: 'captar el matiz',
-        pronunciationHint: 'ma-TIZ',
-      },
-      {
-        id: `exp_res_${Date.now()}_2`,
-        word: 'enriquecer',
-        lemma: 'enriquecer',
-        article: null,
-        category: 'verbo',
-        subcategory: 'expansión',
-        level: 'B1',
-        weight: 4,
-        meaning: 'Hacer que algo aumente de valor, variedad o calidad.',
-        translationEn: 'to enrich',
-        example: 'Leer textos variados ayuda a enriquecer el vocabulario activo.',
-        collocation: 'enriquecer el léxico',
-        pronunciationHint: 'en-ri-que-CER',
-      },
-      {
-        id: `exp_res_${Date.now()}_3`,
-        word: 'a fondo',
-        lemma: 'a fondo',
-        article: null,
-        category: 'expresion',
-        subcategory: 'locución adverbial',
-        level: 'B1',
-        weight: 3,
-        meaning: 'Con profundidad, de manera completa y exhaustiva.',
-        translationEn: 'thoroughly / in depth',
-        example: 'En la clase de hoy analizamos a fondo este campo semántico.',
-        collocation: 'conocer a fondo',
-        pronunciationHint: 'a FON-do',
-      },
-      {
-        id: `exp_res_${Date.now()}_4`,
-        word: 'versátil',
-        lemma: 'versátil',
-        article: null,
-        category: 'adjetivo',
-        subcategory: 'flexibilidad',
-        level: 'B2',
-        weight: 4,
-        meaning: 'Capaz de adaptarse con facilidad y rapidez a diversas funciones o contextos.',
-        translationEn: 'versatile',
-        example: 'Es un verbo muy versátil que se utiliza tanto en cocina como en conversación general.',
-        collocation: 'término versátil',
-        pronunciationHint: 'ver-SÁ-til',
-      },
-    ];
-
-    res.json({ success: true, newWords: resilientAdditions, source: 'resilient-fallback' });
+    // Offline alternatives come from the same topic, never generic filler.
+    const normalizedTopic = topic.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const culinary = /verdura|hortaliza|ingrediente|cocin|comida|receta|huerta/.test(normalizedTopic);
+    const matchingSets = culinary
+      ? [CURATED_SETS.verduras, CURATED_SETS['verbos de coccion']]
+      : Object.entries(CURATED_SETS)
+          .filter(([key]) => normalizedTopic.includes(key) || key.includes(normalizedTopic))
+          .map(([, value]) => value);
+    const extraWords = culinary ? CURATED_EXPANSIONS.cocina
+      : matchingSets.includes(CURATED_SETS.viajes) ? CURATED_EXPANSIONS.viajes : [];
+    const newWords = selectCandidates([...matchingSets.flatMap(set => set.words || []), ...extraWords]);
+    res.json({ success: true, newWords, source: 'curated-expansion' });
   } catch (err: any) {
     console.error('Error in /api/expand-cloud:', err);
-    res.json({
-      success: true,
-      newWords: [
-        {
-          id: `exp_err_${Date.now()}_1`,
-          word: 'compartir',
-          lemma: 'compartir',
-          article: null,
-          category: 'verbo',
-          level: 'A1',
-          weight: 4,
-          meaning: 'Usar o disfrutar de algo en común con otros compañeros.',
-          example: 'Me gusta compartir mis dudas y ejemplos con el grupo de clase.',
-        },
-      ],
-    });
+    res.status(500).json({ success: false, error: 'No se pudo renovar el vocabulario. Intenta de nuevo.' });
   }
 });
 
@@ -1269,7 +1235,14 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders(res, filePath) {
+        if (['sw.js', 'manifest.webmanifest', 'index.html'].includes(path.basename(filePath))) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+        if (path.basename(filePath) === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
+      },
+    }));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });

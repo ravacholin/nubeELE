@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { WordItem, LayoutMode, ColorPalette } from '../types';
 import { playSpanishSpeech, prefetchSpanishAudio } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
-import { Volume2, Plus, Check, RotateCcw, Shuffle, List } from 'lucide-react';
+import { Volume2, Plus, Check, RotateCcw, Shuffle, List, ListChecks } from 'lucide-react';
 import { usePresence } from '../hooks/usePresence';
 import { InteractiveWordCard } from './InteractiveWordCard';
 
@@ -24,6 +24,11 @@ interface WordCloudCanvasProps {
   hasRestorableWords?: boolean;
   onQuickTopic?: (topic: string) => void;
   onToggleFavorite?: (id: string) => void;
+  isSelecting: boolean;
+  retainedIds: Set<string>;
+  selectionDisabled: boolean;
+  onToggleSelectionMode: () => void;
+  onToggleSelection: (id: string) => void;
 }
 
 interface PhysicsNode {
@@ -60,6 +65,11 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   hasRestorableWords = false,
   onQuickTopic,
   onToggleFavorite,
+  isSelecting,
+  retainedIds,
+  selectionDisabled,
+  onToggleSelectionMode,
+  onToggleSelection,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 960, height: 600 });
@@ -480,6 +490,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Word selection (Always interactive)
   const handleWordClick = (word: WordItem) => {
+    if (isSelecting) {
+      if (!selectionDisabled) onToggleSelection(word.id);
+      return;
+    }
     onSelectWord(word);
     handlePronounce(word.word, word.id);
   };
@@ -550,7 +564,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         style={{ height: dimensions.height, '--rows': rows, '--row-h': `${Math.min(64, (dimensions.height - 104) / rows)}px` } as React.CSSProperties}
       >
         <div className="mosaic-bar">
-          <span className="eyebrow"><span>Lista</span><span>Tocá una palabra</span></span>
+          <span className="eyebrow"><span>Lista</span><span>{isSelecting ? 'Selecciona palabras' : 'Tocá una palabra'}</span></span>
+          <button onClick={onToggleSelectionMode} className="text-button" aria-pressed={isSelecting} disabled={selectionDisabled}>
+            {isSelecting ? 'Terminar selección' : 'Seleccionar'}
+          </button>
           <button onClick={() => setMobileViewStyle('canvas')} className="text-button">
             Ver nube
           </button>
@@ -567,7 +584,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
               <li key={w.id} className="mosaic-item" style={{ '--i': Math.min(index, 24) } as React.CSSProperties}>
                 <button
                   onClick={() => handleWordClick(w)}
-                  className={`mosaic-word ${isSelected ? 'is-selected' : ''} ${isPlaying ? 'is-playing' : ''}`}
+                  className={`mosaic-word ${isSelected ? 'is-selected' : ''} ${retainedIds.has(w.id) ? 'is-kept' : ''} ${isPlaying ? 'is-playing' : ''}`}
+                  aria-label={isSelecting ? `Seleccionar palabra: ${displayWord}` : undefined}
+                  aria-pressed={isSelecting ? retainedIds.has(w.id) : undefined}
+                  disabled={isSelecting && selectionDisabled}
                   data-weight={w.weight}
                 >
                   <span className="mosaic-index">{String(index + 1).padStart(2, '0')}</span>
@@ -618,6 +638,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       }}
     >
       <div className="canvas-tools">
+        <button onClick={onToggleSelectionMode} title={isSelecting ? 'Terminar selección' : 'Seleccionar palabras para conservarlas o regenerarlas'} aria-label="Seleccionar palabras" aria-pressed={isSelecting} disabled={selectionDisabled}>
+          <ListChecks aria-hidden="true" />
+          <span>{isSelecting ? 'Terminar' : 'Seleccionar'}</span>
+        </button>
         {dimensions.width < 640 && (
           <button
             onClick={() => setMobileViewStyle('mosaico')}
@@ -661,12 +685,14 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
               touchAction: 'none',
               '--i': Math.min(index, 30),
             } as React.CSSProperties}
-            className={`cloud-node group ${isSelected ? 'is-selected' : ''} ${isHovered ? 'is-hovered' : ''}`}
+            className={`cloud-node group ${isSelected ? 'is-selected' : ''} ${retainedIds.has(node.id) ? 'is-kept' : ''} ${isHovered ? 'is-hovered' : ''}`}
           >
             <button
               type="button"
-              aria-label={`Ver ficha: ${displayWord}`}
-              className={`cloud-tag ${isSelected ? 'is-selected' : ''} ${isPlaying ? 'is-playing' : ''}`}
+              aria-label={`${isSelecting ? 'Seleccionar palabra' : 'Ver ficha'}: ${displayWord}`}
+              aria-pressed={isSelecting ? retainedIds.has(node.id) : undefined}
+              disabled={isSelecting && selectionDisabled}
+              className={`cloud-tag ${isSelected ? 'is-selected' : ''} ${retainedIds.has(node.id) ? 'is-kept' : ''} ${isPlaying ? 'is-playing' : ''}`}
             >
               {validArt && <span className="tag-article">{validArt}</span>}
               <span className="tag-word">{displayWord}</span>
