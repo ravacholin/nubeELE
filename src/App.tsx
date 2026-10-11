@@ -1,6 +1,7 @@
 import { requestWordDetails } from './utils/wordDetails';
 import { requestCloud } from './utils/cloudRequests';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import {
   WordItem,
   CloudData,
@@ -20,31 +21,42 @@ import {
   updateSavedWordDetails,
 } from './utils/savedWordsStorage';
 import {
-  Search,
-  Plus,
+  ArrowRight,
+  ArrowUpRight,
   Maximize2,
   Minimize2,
-  Share2,
-  RotateCw,
   RotateCcw,
-  Eraser,
-  Zap,
-  Flame,
-  Layers,
-  Sparkles,
+  Bookmark,
   KeyRound,
-  BookmarkCheck,
-  Check,
+  Share,
+  X,
 } from 'lucide-react';
 
 const SUGGESTED_TEMPLATES = [
-  { label: 'Verduras & Huerto', query: 'verduras y hortalizas', tag: 'A1-A2' },
-  { label: 'Verbos de Cocción', query: 'verbos de coccion y tecnicas culinarias', tag: 'B1' },
-  { label: 'Emociones & Estados', query: 'emociones y sentimientos', tag: 'B1-B2' },
-  { label: 'Ciudad & Barrio', query: 'lugares de la ciudad y el barrio', tag: 'A2' },
-  { label: 'Viajes & Estaciones', query: 'viajes, trenes y aeropuertos', tag: 'B1' },
-  { label: 'Coloquialismos', query: 'expresiones coloquiales y modismos', tag: 'B2-C1' },
+  { label: 'Verduras y huerta', query: 'verduras y hortalizas', tag: 'A1–A2' },
+  { label: 'Verbos de cocción', query: 'verbos de coccion y tecnicas culinarias', tag: 'B1' },
+  { label: 'Emociones y estados', query: 'emociones y sentimientos', tag: 'B1–B2' },
+  { label: 'Ciudad y barrio', query: 'lugares de la ciudad y el barrio', tag: 'A2' },
+  { label: 'Viajes y estaciones', query: 'viajes, trenes y aeropuertos', tag: 'B1' },
+  { label: 'Coloquialismos', query: 'expresiones coloquiales y modismos', tag: 'B2–C1' },
 ];
+
+const EXPANSIONS = [
+  { type: 'more', label: 'Más palabras' },
+  { type: 'advanced', label: 'Avanzado B2–C1' },
+  { type: 'verbs', label: 'Verbos' },
+  { type: 'expressions', label: 'Expresiones' },
+] as const;
+
+const LEVELS = ['Todos', 'A1', 'A2', 'B1', 'B2', 'C1'];
+
+/** Run a state change inside a view transition where the browser supports it. */
+function withViewTransition(update: () => void) {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!doc.startViewTransition || reduced) { update(); return; }
+  doc.startViewTransition(() => flushSync(update));
+}
 
 export default function App() {
   const cloudRequestId = useRef(0);
@@ -323,6 +335,19 @@ export default function App() {
     );
   };
 
+  const togglePresentation = (next = !isPresentationMode) => {
+    withViewTransition(() => setIsPresentationMode(next));
+  };
+
+  useEffect(() => {
+    if (!isPresentationMode) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !selectedWord && !document.querySelector('[role=dialog]')) togglePresentation(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPresentationMode, selectedWord]);
+
   // Restore cleared board
   const handleRestoreBoard = () => {
     if (previousWords.length > 0) {
@@ -331,295 +356,222 @@ export default function App() {
     }
   };
 
-  return (
-    <div className={`app-shell min-h-screen flex flex-col font-sans text-[#f4f4f5] transition-colors duration-300 ${activePalette.bgClass} selection:bg-white selection:text-black`}>
-      {/* 1. TOP BAR - Minimalist Brutalist Dark */}
-      <header className="app-header sticky top-0 z-40 bg-[#0c0c0c]/95 backdrop-blur-md border-b border-[#27272a]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
-          {/* Zone 1: Minimalist Brutalist Brand */}
-          <div className="flex items-center gap-3">
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                fetchCloud('verduras');
-              }}
-              className="group flex items-center gap-2.5 text-sm tracking-tight text-white hover:text-white"
-              title="Reiniciar con tema por defecto"
-            >
-              <span className="w-5 h-5 bg-white text-black font-black font-mono text-[11px] flex items-center justify-center tracking-tighter">
-                N
-              </span>
-              <span className="font-bold uppercase tracking-wider text-sm font-mono text-zinc-100">
-                NubeELE
-              </span>
-              <span className="hidden sm:inline-block w-px h-3.5 bg-zinc-800" />
-              <span className="hidden sm:inline-block text-[11px] font-mono uppercase tracking-widest text-zinc-400">
-                Léxico interactivo
-              </span>
-            </a>
-          </div>
+  const levelLabel = selectedLevel === 'Todos' ? 'A1—C1' : selectedLevel;
+  const wordCount = String(words.length).padStart(2, '0');
 
-          {/* Primary Actions (Sharp Brutalist Buttons) */}
-          <div className="nav-actions flex items-center gap-2">
-            {/* Guardadas filter button */}
+  return (
+    <div className="app-shell" data-presenting={isPresentationMode || undefined}>
+      <header className="app-header">
+        <div className="shell-row">
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              fetchCloud('verduras');
+            }}
+            className="brand"
+            title="Volver al tema inicial"
+          >
+            <span className="brand-mark" aria-hidden="true">N</span>
+            <span className="brand-name">Nube<span>ELE</span></span>
+            <span className="brand-tagline">Léxico interactivo</span>
+          </a>
+
+          <nav className="nav-actions" aria-label="Acciones">
             <button
               onClick={() => setShowOnlySaved(!showOnlySaved)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
-                showOnlySaved
-                  ? 'bg-zinc-400 text-black border-zinc-400 font-bold'
-                  : 'bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
-              }`}
-              title="Filtrar palabras guardadas con el icono de +"
+              className="nav-link"
+              title="Mostrar solo las palabras guardadas"
               aria-label="Palabras guardadas"
               aria-pressed={showOnlySaved}
             >
-              <BookmarkCheck className={`w-3.5 h-3.5 ${showOnlySaved ? 'text-black' : 'text-zinc-400'}`} />
-              <span className="hidden sm:inline">Guardadas</span>
-              <span>({savedWordsList.length})</span>
+              <Bookmark className="nav-icon" aria-hidden="true" />
+              <span className="nav-label">Guardadas</span>
+              <span className="nav-count">{savedWordsList.length}</span>
             </button>
 
-            {/* Gemini API key */}
             <button
               onClick={() => setIsApiKeyModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
-                hasCustomApiKey
-                  ? 'bg-zinc-950/40 hover:bg-zinc-900/60 text-zinc-300 border-zinc-700/80'
-                  : 'bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 border-[#27272a]'
-              }`}
+              className="nav-link"
               title="Configurar API key de Gemini"
               aria-label="API key"
             >
-              <KeyRound className="hidden sm:block w-3.5 h-3.5 text-zinc-400" />
-              <span className="whitespace-nowrap">API key</span>
+              <KeyRound className="nav-icon" aria-hidden="true" />
+              <span className="nav-label">API key</span>
+              <span className="status-dot" data-on={hasCustomApiKey || undefined} aria-hidden="true" />
             </button>
 
             <button
               onClick={() => setIsExportModalOpen(true)}
-              className="p-1.5 bg-[#1c1c1c] hover:bg-zinc-800 text-zinc-300 hover:text-white border border-[#27272a] text-xs transition-colors cursor-pointer"
+              className="nav-link"
               title="Exportar vocabulario para alumnos"
               aria-label="Exportar vocabulario"
             >
-              <Share2 className="w-4 h-4" />
+              <Share className="nav-icon" aria-hidden="true" />
+              <span className="nav-label">Exportar</span>
             </button>
 
             <button
-              onClick={() => setIsPresentationMode(!isPresentationMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
-                isPresentationMode
-                  ? 'bg-zinc-400 text-black border-zinc-400 font-bold'
-                  : 'bg-white text-black hover:bg-zinc-200 border-white font-semibold'
-              }`}
+              onClick={() => togglePresentation()}
+              className="nav-primary"
               title="Modo pantalla completa para proyector o Zoom"
               aria-label={isPresentationMode ? 'Salir de pizarra' : 'Modo pizarra'}
             >
-              {isPresentationMode ? (
-                <>
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Salir</span>
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Pizarra</span>
-                </>
-              )}
+              <span className="nav-label">{isPresentationMode ? 'Salir' : 'Pizarra'}</span>
+              {isPresentationMode ? <Minimize2 className="nav-icon" aria-hidden="true" /> : <Maximize2 className="nav-icon" aria-hidden="true" />}
             </button>
-          </div>
+          </nav>
         </div>
       </header>
 
-      {/* MAIN CONTAINER */}
-      <main className="workspace flex-1 max-w-7xl w-full mx-auto">
-        {/* Dynamic Topic Generator Bar - Minimalist Brutalist Hero */}
+      <main className="workspace">
         {!isPresentationMode && (
-          <section className="compose-panel">
-            <div className="intro-heading">
-              <div>
-                <p className="intro-eyebrow">UN ESPACIO PARA EL VOCABULARIO</p>
-                <h1 className="intro-title">
-                  El español, en palabras.
-                </h1>
+          <section className="compose-panel" aria-labelledby="intro-title">
+            <div className="intro">
+              <p className="eyebrow intro-eyebrow">
+                <span>N° 01</span>
+                <span>Un espacio para el vocabulario</span>
+              </p>
+              <h1 id="intro-title" className="intro-title">
+                El español, <em>en palabras.</em>
+              </h1>
+              <div className="intro-aside">
                 <p className="intro-description">
-                  Explorá, escuchá y enseñá español.
+                  Explorá, escuchá y enseñá español: una nube de léxico por tema, con fichas, voz y variantes regionales.
                 </p>
-              </div>
-
-              <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-                <span>ELE · A1—C1</span>
+                <dl className="intro-meta">
+                  <div><dt>Lengua</dt><dd>ELE</dd></div>
+                  <div><dt>Niveles</dt><dd>A1—C1</dd></div>
+                </dl>
               </div>
             </div>
 
-            {/* Search and level filter */}
             <form onSubmit={handleSearchSubmit} className="compose-form">
-              <div className="topic-field relative">
+              <label className="field topic-field">
+                <span className="field-label">Tema</span>
                 <input
                   type="text"
                   value={topicInput}
                   onChange={(e) => setTopicInput(e.target.value)}
-                  placeholder="¿Qué tema querés explorar?"
+                  placeholder="¿Qué querés explorar?"
                   aria-label="Tema de la nube"
-                  className="topic-input w-full pl-10 pr-4 py-2 sm:py-2.5 bg-[#181818] hover:bg-[#202020] focus:bg-[#181818] border border-[#27272a] text-sm text-white placeholder:text-zinc-400 focus:outline-hidden focus:border-white transition-all font-mono"
+                  className="topic-input"
+                  enterKeyHint="go"
                 />
-                <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              </div>
+              </label>
 
-              {/* Level Filter */}
-              <select
-                value={selectedLevel}
-                aria-label="Nivel MCER"
-                onChange={(e) => setSelectedLevel(e.target.value)}
-                className="level-select px-3 py-2 sm:py-2.5 bg-[#181818] border border-[#27272a] text-xs font-mono uppercase tracking-wider text-zinc-200 focus:outline-hidden focus:border-white cursor-pointer"
-              >
-                <option value="Todos">Niveles: Todos</option>
-                <option value="A1">Nivel A1</option>
-                <option value="A2">Nivel A2</option>
-                <option value="B1">Nivel B1</option>
-                <option value="B2">Nivel B2</option>
-                <option value="C1">Nivel C1</option>
-              </select>
+              <label className="field level-field">
+                <span className="field-label">Nivel</span>
+                <select
+                  value={selectedLevel}
+                  aria-label="Nivel MCER"
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="level-select"
+                >
+                  {LEVELS.map(level => (
+                    <option key={level} value={level}>{level === 'Todos' ? 'Todos' : level}</option>
+                  ))}
+                </select>
+              </label>
 
-              {/* Generate Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="generate-button flex items-center justify-center gap-2 px-5 sm:px-6 py-2 sm:py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 text-black rounded-none text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0"
-              >
-                {isLoading ? (
-                  <>
-                    <RotateCw className="w-3.5 h-3.5 animate-spin text-black" />
-                    <span>Generando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-black" />
-                    <span>Generar nube</span>
-                  </>
-                )}
+              <button type="submit" disabled={isLoading} className="generate-button" data-loading={isLoading || undefined}>
+                <span>{isLoading ? 'Generando' : 'Generar'}</span>
+                <ArrowRight className="generate-icon" aria-hidden="true" />
               </button>
             </form>
 
-            <details className="topic-explorer text-xs font-mono text-zinc-400">
-              <summary className="cursor-pointer hover:text-white py-1">Explorar temas</summary>
-            <div className="flex flex-wrap gap-2 pt-3">
-              {SUGGESTED_TEMPLATES.map((tmpl) => (
-                <button
-                  key={tmpl.query}
-                  onClick={() => {
-                    setTopicInput(tmpl.query);
-                    fetchCloud(tmpl.query, selectedLevel);
-                  }}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-mono uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
-                    currentTopic === tmpl.query
-                      ? 'bg-white text-black border-white font-bold'
-                      : 'bg-[#181818] text-zinc-300 border-[#27272a] hover:border-zinc-500 hover:text-white'
-                  }`}
-                >
-                  <span>{tmpl.label}</span>
-                  <span className="text-[10px] text-zinc-400 font-sans opacity-70">[{tmpl.tag}]</span>
-                </button>
-              ))}
+            <div className="topic-explorer">
+              <span className="row-label">Sugerencias</span>
+              <ul className="topic-list">
+                {SUGGESTED_TEMPLATES.map((tmpl, index) => (
+                  <li key={tmpl.query}>
+                    <button
+                      onClick={() => {
+                        setTopicInput(tmpl.query);
+                        fetchCloud(tmpl.query, selectedLevel);
+                      }}
+                      aria-pressed={currentTopic === tmpl.query}
+                      className="topic-chip"
+                    >
+                      <span className="topic-index">{String(index + 1).padStart(2, '0')}</span>
+                      <span>{tmpl.label}</span>
+                      <span className="topic-tag">{tmpl.tag}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-            </details>
-
           </section>
         )}
 
-        {/* Error Notification */}
         {errorMessage && (
-          <div className="p-4 bg-rose-950/40 border border-rose-800 text-xs font-mono text-rose-300 flex items-center justify-between">
-            <span>{errorMessage}</span>
-            <button
-              onClick={() => setErrorMessage(null)}
-              className="text-white hover:underline uppercase text-[11px] font-bold cursor-pointer"
-            >
-              Cerrar
+          <div role="alert" className="notice">
+            <span className="notice-label">Error</span>
+            <span className="notice-text">{errorMessage}</span>
+            <button onClick={() => setErrorMessage(null)} className="notice-close" aria-label="Cerrar aviso">
+              <X aria-hidden="true" />
             </button>
           </div>
         )}
 
-        {/* Word Cloud Visual Stage Container - Brutalist Frame */}
-        <section data-generating={isLoading || undefined} aria-label="Nube de palabras interactiva" className={`cloud-stage bg-[#111111] border border-[#27272a] overflow-hidden flex flex-col transition-all ${
-          isPresentationMode ? 'presentation-stage fixed inset-0 z-50 rounded-none border-none' : ''
-        }`}>
-          {/* Cloud Header / Toolbar */}
-          <div className="cloud-header px-3 sm:px-5 py-2.5 sm:py-3 border-b border-[#282828] bg-[#141414] flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="cloud-title text-white">
-                  {cloudData?.title || 'Nube de palabras'}
-                </h2>
-                <span aria-label={`${words.length} palabras`} className="cloud-count text-xs text-zinc-400 font-mono">
-                  {String(words.length).padStart(2, '0')}
-                </span>
+        <section
+          data-generating={isLoading || undefined}
+          aria-label="Nube de palabras interactiva"
+          className={`cloud-stage ${isPresentationMode ? 'presentation-stage' : ''}`}
+        >
+          <header className="cloud-header">
+            <div className="cloud-heading">
+              <p className="eyebrow">
+                <span>N° 02</span>
+                <span>{isLoading ? 'Generando nube…' : `Nube · ${levelLabel}`}</span>
+              </p>
+              <h2 key={cloudData?.title} className="cloud-title">
+                {cloudData?.title || 'Nube de palabras'}
+              </h2>
+              {cloudData?.summary && <p className="cloud-summary">{cloudData.summary}</p>}
+            </div>
+
+            <div className="cloud-meta">
+              <span className="cloud-count" aria-label={`${words.length} palabras`}>
+                <strong>{wordCount}</strong>
+                <span>palabras</span>
+              </span>
+              <div className="cloud-actions">
+                {words.length === 0 && previousWords.length > 0 ? (
+                  <button onClick={handleRestoreBoard} className="text-button" title="Restaurar las palabras borradas">
+                    <RotateCcw aria-hidden="true" />
+                    <span>Restaurar</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleClearBoard}
+                    disabled={words.length === 0}
+                    className="text-button"
+                    title="Borrar la pizarra para dejarla en blanco"
+                  >
+                    <span>Borrar</span>
+                  </button>
+                )}
+                {isPresentationMode && (
+                  <button onClick={() => togglePresentation(false)} className="text-button is-strong" title="Salir de la pizarra (Esc)">
+                    <Minimize2 aria-hidden="true" />
+                    <span>Salir</span>
+                  </button>
+                )}
               </div>
-              {cloudData?.summary && (
-                <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1 max-w-xl font-sans">
-                  {cloudData.summary}
-                </p>
-              )}
             </div>
+          </header>
 
-            {/* Stage controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-
-              {/* Borrar pizarra button */}
-              <button
-                onClick={handleClearBoard}
-                disabled={words.length === 0}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-mono uppercase tracking-wider border transition-all ${
-                  words.length === 0
-                    ? 'opacity-30 cursor-not-allowed bg-[#1c1c1c] border-[#27272a] text-zinc-600'
-                    : 'bg-[#1c1c1c] hover:bg-rose-950/60 hover:border-rose-700 hover:text-rose-300 border-[#27272a] text-zinc-300 cursor-pointer'
-                }`}
-                title="Borrar la pizarra para dejarla en blanco"
-              >
-                <Eraser className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Borrar</span>
-              </button>
-
-              {/* Restaurar pizarra button */}
-              {words.length === 0 && previousWords.length > 0 && (
-                <button
-                  onClick={handleRestoreBoard}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-white text-black border border-white text-xs font-mono uppercase tracking-wider font-bold transition-all cursor-pointer"
-                  title="Restaurar las palabras borradas"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-black" />
-                  <span>Restaurar ({previousWords.length})</span>
-                </button>
-              )}
-
-              {/* Presentation Exit Button if in presentation mode */}
-              {isPresentationMode && (
-                <button
-                  onClick={() => setIsPresentationMode(false)}
-                  className="flex items-center gap-1 px-3 py-1 bg-white text-black text-xs font-mono uppercase font-bold cursor-pointer"
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span>Salir</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Interactive Word Cloud Visual Canvas */}
           {showOnlySaved && (
-            <div className="px-4 py-2 bg-zinc-950/70 border-b border-zinc-700/80 flex items-center justify-between text-xs font-mono text-zinc-300">
-              <div className="flex items-center gap-2">
-                <BookmarkCheck className="w-4 h-4 text-zinc-400" />
-                <span>Mostrando palabras guardadas con el icono de + ({displayedWords.length})</span>
-              </div>
-              <button
-                onClick={() => setShowOnlySaved(false)}
-                className="text-zinc-400 hover:text-white underline cursor-pointer text-[11px] uppercase"
-              >
+            <div className="saved-banner">
+              <span>Guardadas · {String(displayedWords.length).padStart(2, '0')}</span>
+              <button onClick={() => setShowOnlySaved(false)} className="text-button">
                 Ver toda la nube
               </button>
             </div>
           )}
 
-          <div className="cloud-body flex-1 relative min-h-[460px] sm:min-h-[540px]">
+          <div className="cloud-body">
             <WordCloudCanvas
               words={displayedWords}
               palette={activePalette}
@@ -642,88 +594,58 @@ export default function App() {
             />
           </div>
 
-          {/* Cloud Footer Actions: Expand vocabulary */}
           {!isPresentationMode && (
-            <div className="cloud-footer px-3 sm:px-5 py-2.5 sm:py-3 border-t border-[#282828] bg-[#141414] flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs font-mono">
-              <details className="min-w-0">
-                <summary className="cursor-pointer text-zinc-400 hover:text-white py-1">Ampliar nube</summary>
-                <div className="flex flex-wrap gap-2 pt-3">
-                <button
-                  onClick={() => handleExpandCloud('more')}
-                  disabled={isExpanding || isLoading}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3 h-3 text-zinc-400" />
-                  <span>Más palabras</span>
-                </button>
-                <button
-                  onClick={() => handleExpandCloud('advanced')}
-                  disabled={isExpanding || isLoading}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  <Layers className="w-3 h-3 text-zinc-400" />
-                  <span>Avanzado (B2-C1)</span>
-                </button>
-                <button
-                  onClick={() => handleExpandCloud('verbs')}
-                  disabled={isExpanding || isLoading}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  <Flame className="w-3 h-3 text-zinc-400" />
-                  <span>Verbos</span>
-                </button>
-                <button
-                  onClick={() => handleExpandCloud('expressions')}
-                  disabled={isExpanding || isLoading}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-[#1c1c1c] hover:bg-zinc-800 border border-[#27272a] text-zinc-300 disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  <Zap className="w-3 h-3 text-zinc-400" />
-                  <span>Expresiones</span>
-                </button>
+            <footer className="cloud-footer">
+              <div className="footer-row">
+                <span className="row-label">Ampliar</span>
+                <div className="chip-row">
+                  {EXPANSIONS.map(({ type, label }) => (
+                    <button
+                      key={type}
+                      onClick={() => handleExpandCloud(type)}
+                      disabled={isExpanding || isLoading}
+                      className="chip"
+                    >
+                      <span aria-hidden="true">+</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
                 </div>
-              </details>
+              </div>
 
-              {/* Related Topic tags */}
               {cloudData?.suggestedTopics && cloudData.suggestedTopics.length > 0 && (
-                <details className="min-w-0 text-zinc-400 text-[11px]">
-                  <summary className="cursor-pointer hover:text-white py-1">Temas relacionados</summary>
-                  <div className="flex flex-wrap items-center gap-2 pt-3">
-                    {cloudData.suggestedTopics.slice(0, 4).map((topic, i) => (
-                      <React.Fragment key={topic}>
-                        <button
-                          onClick={() => {
-                            setTopicInput(topic);
-                            fetchCloud(topic, selectedLevel);
-                          }}
-                          className="hover:text-white uppercase transition-colors cursor-pointer underline underline-offset-4 decoration-zinc-700 hover:decoration-white"
-                        >
-                          {topic}
-                        </button>
-                        {i < 3 && <span className="text-zinc-600">/</span>}
-                      </React.Fragment>
+                <div className="footer-row">
+                  <span className="row-label">Relacionados</span>
+                  <div className="chip-row">
+                    {cloudData.suggestedTopics.slice(0, 4).map((topic) => (
+                      <button
+                        key={topic}
+                        onClick={() => {
+                          setTopicInput(topic);
+                          fetchCloud(topic, selectedLevel);
+                        }}
+                        className="link-button"
+                      >
+                        <span>{topic}</span>
+                        <ArrowUpRight aria-hidden="true" />
+                      </button>
                     ))}
                   </div>
-                </details>
+                </div>
               )}
-            </div>
+            </footer>
           )}
         </section>
-
       </main>
 
-      {/* FOOTER - Minimalist Brutalist */}
-      <footer className="app-footer mt-auto border-t border-[#282828] bg-[#0c0c0c] py-4 text-xs font-mono text-zinc-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white uppercase tracking-wider">NubeELE</span>
-            <span className="text-zinc-700">|</span>
-            <span>Español en palabras</span>
-          </div>
-
+      <footer className="app-footer">
+        <div className="shell-row">
+          <span className="brand-name">Nube<span>ELE</span></span>
+          <span>Español en palabras</span>
+          <span className="app-footer-meta">ELE · A1—C1</span>
         </div>
       </footer>
 
-      {/* Full Word Detail Drawer / Modal */}
       {isFullModalOpen && selectedWord && (
         <WordDetailModal
           key={selectedWord.id}
@@ -736,7 +658,6 @@ export default function App() {
         />
       )}
 
-      {/* Export Vocabulary Modal */}
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
@@ -744,28 +665,17 @@ export default function App() {
         words={showOnlySaved ? displayedWords : words}
       />
 
-      {/* Gemini API Key Instructional & Management Modal */}
       <ApiKeyModal
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
         onKeyChange={(hasKey) => setHasCustomApiKey(hasKey)}
       />
 
-      {/* Floating Save Toast Notification */}
       {saveToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="save-feedback fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-[#151515] border-2 border-zinc-500 shadow-2xl text-xs font-mono text-zinc-100 rounded-none pointer-events-none transition-all"
-        >
-          {saveToast.isSaved ? (
-            <Check className="w-4 h-4 text-zinc-400 shrink-0" />
-          ) : (
-            <BookmarkCheck className="w-4 h-4 text-zinc-400 shrink-0" />
-          )}
-          <span>
-            {saveToast.text}: <strong className="text-zinc-300 uppercase">«{saveToast.word}»</strong>
-          </span>
+        <div key={saveToast.word + saveToast.isSaved} role="status" aria-live="polite" className="save-feedback">
+          <span className="save-feedback-mark" aria-hidden="true">{saveToast.isSaved ? '+' : '−'}</span>
+          <span>{saveToast.isSaved ? 'Guardada' : 'Quitada'}</span>
+          <strong>{saveToast.word}</strong>
         </div>
       )}
     </div>
