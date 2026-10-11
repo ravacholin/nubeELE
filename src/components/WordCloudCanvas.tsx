@@ -4,7 +4,8 @@ import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { WordItem, LayoutMode, ColorPalette } from '../types';
 import { playSpanishSpeech, prefetchSpanishAudio } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
-import { Volume2, Plus, Check, RotateCcw, Shuffle, List, ListChecks } from 'lucide-react';
+import { createWordPress } from '../utils/wordPress';
+import { Volume2, Plus, Check, RotateCcw, Shuffle, List, Eraser } from 'lucide-react';
 import { usePresence } from '../hooks/usePresence';
 import { InteractiveWordCard } from './InteractiveWordCard';
 
@@ -24,11 +25,10 @@ interface WordCloudCanvasProps {
   hasRestorableWords?: boolean;
   onQuickTopic?: (topic: string) => void;
   onToggleFavorite?: (id: string) => void;
-  isSelecting: boolean;
   retainedIds: Set<string>;
   selectionDisabled: boolean;
-  onToggleSelectionMode: () => void;
   onToggleSelection: (id: string) => void;
+  onClearBoard: () => void;
 }
 
 interface PhysicsNode {
@@ -65,11 +65,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   hasRestorableWords = false,
   onQuickTopic,
   onToggleFavorite,
-  isSelecting,
   retainedIds,
   selectionDisabled,
-  onToggleSelectionMode,
   onToggleSelection,
+  onClearBoard,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 960, height: 600 });
@@ -88,6 +87,16 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Mobile visual display mode: 'canvas' (floating/spiral physics) or 'mosaico' (flow tag cloud cluster)
   const [mobileViewStyle, setMobileViewStyle] = useState<'canvas' | 'mosaico'>('canvas');
+  const selectionHandler = useRef(onToggleSelection);
+  selectionHandler.current = onToggleSelection;
+  const [wordPress] = useState(() => createWordPress(id => selectionHandler.current(id)));
+  const pointerRef = useRef<{ id: number; node?: PhysicsNode; x: number; y: number } | null>(null);
+  useEffect(() => {
+    wordPress.cancel();
+    pointerRef.current = null;
+    draggingNodeRef.current = null;
+    return () => wordPress.cancel();
+  }, [wordPress, selectionDisabled, mobileViewStyle, words]);
 
   // The cloud fills its stage: measure the stage, not the content.
   useEffect(() => {
@@ -377,37 +386,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     };
   }, [dimensions, layoutHeight]);
 
-  // Handle Dragging (Mouse)
-  const handleMouseDown = (e: React.MouseEvent, node: PhysicsNode) => {
-    if (e.button !== 0) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    draggingNodeRef.current = {
-      id: node.id,
-      offsetX: mouseX - node.x,
-      offsetY: mouseY - node.y,
-    };
-    mousePosRef.current = { x: mouseX, y: mouseY };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    mousePosRef.current = { x: mouseX, y: mouseY };
-  };
-
-  const handleMouseLeave = () => {
-    mousePosRef.current = null;
-    draggingNodeRef.current = null;
-  };
-
-  const handleMouseUp = () => {
+  const finishDragging = () => {
     if (draggingNodeRef.current) {
       // Update equilibrium target coordinate to the drop location so it settles naturally
       const draggedId = draggingNodeRef.current.id;
@@ -418,55 +397,66 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     draggingNodeRef.current = null;
   };
 
-  // Handle Dragging (Touch on Mobile)
-  const touchStartPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent, node: PhysicsNode) => {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const touchX = touch.clientX - rect.left;
-    const touchY = touch.clientY - rect.top;
-
-    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-
-    draggingNodeRef.current = {
-      id: node.id,
-      offsetX: touchX - node.x,
-      offsetY: touchY - node.y,
-    };
-    mousePosRef.current = { x: touchX, y: touchY };
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!containerRef.current || !draggingNodeRef.current) return;
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const touchX = touch.clientX - rect.left;
-    const touchY = touch.clientY - rect.top;
-    mousePosRef.current = { x: touchX, y: touchY };
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent, node: PhysicsNode) => {
-    // Suppress the synthetic click: the tap is handled here exactly once.
-    e.preventDefault();
-    if (touchStartPosRef.current && e.changedTouches.length > 0) {
-      const touch = e.changedTouches[0];
-      const dist = Math.hypot(
-        touch.clientX - touchStartPosRef.current.x,
-        touch.clientY - touchStartPosRef.current.y
-      );
-      // If movement was minimal (< 10px), it's an intentional tap!
-      if (dist < 10) {
-        handleWordClick(node.word);
+  // Pointer events share one hold/tap behavior for fingers, pens and mice.
+  const wordPressHandlers = (word: WordItem, node?: PhysicsNode) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (!event.isPrimary || event.button !== 0) {
+        wordPress.cancel();
+        return;
       }
-    }
-    handleMouseUp();
-    touchStartPosRef.current = null;
-  };
+      pointerRef.current = { id: event.pointerId, node, x: event.clientX, y: event.clientY };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      wordPress.start(word.id, event.clientX, event.clientY);
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const pointer = pointerRef.current;
+      if (!pointer || pointer.id !== event.pointerId) return;
+      if (!wordPress.move(event.clientX, event.clientY) || !pointer.node || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      if (!draggingNodeRef.current) {
+        draggingNodeRef.current = {
+          id: pointer.node.id,
+          offsetX: pointer.x - rect.left - pointer.node.x,
+          offsetY: pointer.y - rect.top - pointer.node.y,
+        };
+      }
+      mousePosRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (pointerRef.current?.id !== event.pointerId) return;
+      wordPress.end();
+      pointerRef.current = null;
+      finishDragging();
+    },
+    onPointerCancel: () => {
+      wordPress.cancel();
+      pointerRef.current = null;
+      finishDragging();
+    },
+    onLostPointerCapture: () => {
+      wordPress.cancel();
+      pointerRef.current = null;
+      finishDragging();
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault(),
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (event.detail === 0 || wordPress.allowClick()) handleWordClick(word);
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.shiftKey && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat && !selectionDisabled) onToggleSelection(word.id);
+      }
+    },
+  });
+
+  const clearButton = <button onClick={onClearBoard} className="board-clear" title="Borrar la pizarra" aria-label="Borrar la pizarra">
+    <Eraser aria-hidden="true" />
+    <span>Borrar</span>
+  </button>;
+
+  const pressHint = 'Toca para abrir la ficha. Mantén pulsado para seleccionar. Con teclado: Mayús + Enter.';
 
   // Re-scramble / Reorganize physics impulse
   const handleReorganize = () => {
@@ -490,10 +480,6 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
 
   // Word selection (Always interactive)
   const handleWordClick = (word: WordItem) => {
-    if (isSelecting) {
-      if (!selectionDisabled) onToggleSelection(word.id);
-      return;
-    }
     onSelectWord(word);
     handlePronounce(word.word, word.id);
   };
@@ -564,10 +550,8 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         style={{ height: dimensions.height, '--rows': rows, '--row-h': `${Math.min(64, (dimensions.height - 104) / rows)}px` } as React.CSSProperties}
       >
         <div className="mosaic-bar">
-          <span className="eyebrow"><span>Lista</span><span>{isSelecting ? 'Selecciona palabras' : 'Tocá una palabra'}</span></span>
-          <button onClick={onToggleSelectionMode} className="text-button" aria-pressed={isSelecting} disabled={selectionDisabled}>
-            {isSelecting ? 'Terminar selección' : 'Seleccionar'}
-          </button>
+          <span className="eyebrow"><span>Lista</span><span>Toca o mantén pulsado</span></span>
+          {clearButton}
           <button onClick={() => setMobileViewStyle('canvas')} className="text-button">
             Ver nube
           </button>
@@ -583,11 +567,11 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             return (
               <li key={w.id} className="mosaic-item" style={{ '--i': Math.min(index, 24) } as React.CSSProperties}>
                 <button
-                  onClick={() => handleWordClick(w)}
+                  {...wordPressHandlers(w)}
                   className={`mosaic-word ${isSelected ? 'is-selected' : ''} ${retainedIds.has(w.id) ? 'is-kept' : ''} ${isPlaying ? 'is-playing' : ''}`}
-                  aria-label={isSelecting ? `Seleccionar palabra: ${displayWord}` : undefined}
-                  aria-pressed={isSelecting ? retainedIds.has(w.id) : undefined}
-                  disabled={isSelecting && selectionDisabled}
+                  aria-label={`Ver ficha: ${displayWord}`}
+                  aria-pressed={retainedIds.has(w.id)}
+                  title={pressHint}
                   data-weight={w.weight}
                 >
                   <span className="mosaic-index">{String(index + 1).padStart(2, '0')}</span>
@@ -626,11 +610,6 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleMouseUp}
       className={`tag-canvas ${isArranging ? 'is-arranging' : ''} ${selectedWord ? 'has-selection' : ''}`}
       style={{
         minHeight: Math.max(layoutHeight, dimensions.height),
@@ -638,10 +617,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
       }}
     >
       <div className="canvas-tools">
-        <button onClick={onToggleSelectionMode} title={isSelecting ? 'Terminar selección' : 'Seleccionar palabras para conservarlas o regenerarlas'} aria-label="Seleccionar palabras" aria-pressed={isSelecting} disabled={selectionDisabled}>
-          <ListChecks aria-hidden="true" />
-          <span>{isSelecting ? 'Terminar' : 'Seleccionar'}</span>
-        </button>
+        {clearButton}
         {dimensions.width < 640 && (
           <button
             onClick={() => setMobileViewStyle('mosaico')}
@@ -668,11 +644,6 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         return (
           <div
             key={node.id}
-            onMouseDown={(e) => handleMouseDown(e, node)}
-            onClick={() => handleWordClick(node.word)}
-            onTouchStart={(e) => handleTouchStart(e, node)}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={(e) => handleTouchEnd(e, node)}
             onMouseEnter={() => setHoveredWordId(node.id)}
             onMouseLeave={() => setHoveredWordId(null)}
             data-weight={node.word.weight}
@@ -689,9 +660,10 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
           >
             <button
               type="button"
-              aria-label={`${isSelecting ? 'Seleccionar palabra' : 'Ver ficha'}: ${displayWord}`}
-              aria-pressed={isSelecting ? retainedIds.has(node.id) : undefined}
-              disabled={isSelecting && selectionDisabled}
+              {...wordPressHandlers(node.word, node)}
+              aria-label={`Ver ficha: ${displayWord}`}
+              aria-pressed={retainedIds.has(node.id)}
+              title={pressHint}
               className={`cloud-tag ${isSelected ? 'is-selected' : ''} ${retainedIds.has(node.id) ? 'is-kept' : ''} ${isPlaying ? 'is-playing' : ''}`}
             >
               {validArt && <span className="tag-article">{validArt}</span>}

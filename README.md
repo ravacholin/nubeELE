@@ -14,6 +14,13 @@ npm run dev
 The Express server serves the frontend and `/api/*` on port 3000.
 `npm run preview` serves only the static build and does not run the API.
 
+## Word gestures
+
+Tap or click a word to open its card. Hold it for half a second to select or
+deselect it for retention or regeneration; use Shift + Enter or Shift + Space
+with a keyboard. Dragging cancels selection. The eraser clears the board, keeps
+saved words, and allows restoring the cleared words.
+
 ## Validation
 
 ```sh
