@@ -1,5 +1,5 @@
 import { WordDetailsStatus, WordLexicalExtras, type DetailState } from './WordDetailsStatus';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WordItem } from '../types';
 import { playSpanishSpeech } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
@@ -38,6 +38,41 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
   const [isLoadingExtra, setIsLoadingExtra] = useState(false);
 
   useEffect(() => { setExtraExample(null); }, [word.id]);
+
+  // Phones: drag the sheet down by its handle or toolbar to dismiss it.
+  const sheetRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ id: number; y: number; t: number; dy: number; onHandle: boolean } | null>(null);
+  const dragHandlers = {
+    onPointerDown: (event: React.PointerEvent) => {
+      if (!window.matchMedia('(max-width: 639px)').matches || (event.target as Element).closest('.toolbar-actions')) return;
+      drag.current = { id: event.pointerId, y: event.clientY, t: performance.now(), dy: 0, onHandle: !!(event.target as Element).closest('.sheet-handle') };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    onPointerMove: (event: React.PointerEvent) => {
+      const state = drag.current;
+      const sheet = sheetRef.current;
+      if (!state || state.id !== event.pointerId || !sheet) return;
+      state.dy = Math.max(0, event.clientY - state.y);
+      sheet.style.transition = 'none';
+      sheet.style.transform = `translateY(${state.dy}px)`;
+    },
+    onPointerUp: (event: React.PointerEvent) => {
+      const state = drag.current;
+      const sheet = sheetRef.current;
+      drag.current = null;
+      if (!state || state.id !== event.pointerId || !sheet) return;
+      const velocity = state.dy / Math.max(1, performance.now() - state.t);
+      sheet.style.transition = '';
+      // Capture swallows the handle's click, so a tap on it closes here.
+      if (state.dy < 6 && state.onHandle) { onClose(); return; }
+      if (state.dy > 120 || (state.dy > 32 && velocity > .6)) { onClose(); return; }
+      sheet.style.transform = '';
+    },
+    onPointerCancel: () => {
+      drag.current = null;
+      if (sheetRef.current) { sheetRef.current.style.transition = ''; sheetRef.current.style.transform = ''; }
+    },
+  };
 
   // Close card when pressing Escape
   useEffect(() => {
@@ -105,11 +140,13 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
       <div className="sheet-backdrop" data-closing={closing || undefined} onClick={onClose} aria-hidden="true" />
 
       <aside
+        ref={sheetRef}
         role="region"
         aria-label="Ficha de información de palabra"
         data-closing={closing || undefined}
         className="lexical-sheet word-inspector"
       >
+        <div className="sheet-grip" {...dragHandlers}>
         <button type="button" onClick={onClose} className="sheet-handle" aria-label="Cerrar ficha" tabIndex={-1}>
           <span />
         </button>
@@ -137,8 +174,10 @@ export const InteractiveWordCard: React.FC<InteractiveWordCardProps> = ({
             </button>
           </div>
         </div>
+        </div>
 
         <div key={word.id} className="lexical-body">
+          <span className="inspector-index" aria-hidden="true">{String(currentIndex + 1).padStart(2, '0')}</span>
           <div className="inspector-heading">
             <h3 className="lexical-title">
               {article && <span className="title-article">{article}</span>}

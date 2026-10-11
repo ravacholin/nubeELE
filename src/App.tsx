@@ -83,6 +83,8 @@ export default function App() {
   const [cloudFocus, setCloudFocus] = useState<CloudFocus>(initialSnapshot?.focus ?? 'more');
   const [previousWords, setPreviousWords] = useState<WordItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingTopic, setPendingTopic] = useState('verduras');
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [isExpanding, setIsExpanding] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -173,6 +175,7 @@ export default function App() {
       .filter(word => selectedIds.has(word.id) && !hiddenDuringGeneration.current.has(word.id))
       .map(word => previous.find(current => current.id === word.id) || word);
     setIsLoading(true);
+    setPendingTopic(query);
     setIsExpanding(false);
     setErrorMessage(null);
     setSelectedWord(null);
@@ -608,21 +611,23 @@ export default function App() {
           </div>
         )}
 
-        <div className="cloud-body">
-          <div className="cloud-caption">
-            <h1 key={cloudData?.title} className="cloud-title">
-              {cloudData?.title || 'Nube de palabras'}
-            </h1>
-            <span
-              className="cloud-count"
-              aria-label={`${displayedWords.length} palabras`}
-              title={showOnlySaved ? undefined : `Hasta ${MAX_CLOUD_WORDS} términos. Al añadir nuevos, salen los más antiguos.`}
-            >
+        <div className="stage-strip">
+          <div className="strip-cell strip-count" title={showOnlySaved ? undefined : `Hasta ${MAX_CLOUD_WORDS} términos. Al añadir nuevos, salen los más antiguos.`}>
+            <span key={displayedWords.length} className="strip-number" aria-label={`${displayedWords.length} palabras`}>
               {String(displayedWords.length).padStart(2, '0')}
             </span>
-            <span className="cloud-level">{isLoading ? 'Generando…' : isExpanding ? 'Renovando…' : showOnlySaved ? 'Guardadas' : cloudFocus === 'more' ? levelLabel : EXPANSIONS.find(item => item.type === cloudFocus)?.label}</span>
+            <span className="strip-unit" aria-hidden="true">{displayedWords.length === 1 ? 'palabra' : 'palabras'}</span>
+          </div>
+          <div className="strip-cell strip-title">
+            <h1 key={cloudData?.title} className="cloud-title">
+              {showOnlySaved ? 'Palabras guardadas' : cloudData?.title || 'Nube de palabras'}
+            </h1>
+          </div>
+          <div className="strip-cell strip-status" data-busy={isLoading || isExpanding || undefined}>
+            <span className="status-mark" aria-hidden="true" />
+            <span className="cloud-level">{isLoading ? 'Generando' : isExpanding ? 'Renovando' : showOnlySaved ? 'Guardadas' : cloudFocus === 'more' ? levelLabel : EXPANSIONS.find(item => item.type === cloudFocus)?.label}</span>
             {showOnlySaved && (
-              <button onClick={() => setShowOnlySaved(false)} className="caption-link">Ver toda la nube</button>
+              <button onClick={() => setShowOnlySaved(false)} className="caption-link">Ver nube</button>
             )}
             {isPresentationMode && (
               <button onClick={() => togglePresentation(false)} className="caption-link" title="Salir de la pizarra (Esc)">
@@ -630,7 +635,10 @@ export default function App() {
               </button>
             )}
           </div>
+          <div className="strip-cell strip-tools" ref={setToolsSlot} />
+        </div>
 
+        <div className="cloud-body" data-inspecting={selectedWord ? true : undefined}>
           <WordCloudCanvas
             words={displayedWords}
             palette={activePalette}
@@ -651,6 +659,9 @@ export default function App() {
             selectionDisabled={isLoading || isExpanding || showOnlySaved}
             onToggleSelection={handleToggleSelection}
             onClearBoard={handleClearBoard}
+            toolsSlot={toolsSlot}
+            isGenerating={isLoading}
+            generatingTopic={pendingTopic}
           />
         </div>
 

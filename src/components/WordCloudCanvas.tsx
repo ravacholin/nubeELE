@@ -1,11 +1,12 @@
 import type { DetailState } from './WordDetailsStatus';
 import { flowCloudBoxes, packCloudBoxes } from '../utils/cloudLayout';
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { WordItem, LayoutMode, ColorPalette } from '../types';
 import { playSpanishSpeech, prefetchSpanishAudio } from '../utils/audio';
 import { getValidArticle, cleanDisplayWord } from '../utils/grammar';
 import { createWordPress } from '../utils/wordPress';
-import { Volume2, Plus, Check, RotateCcw, Shuffle, List, Eraser } from 'lucide-react';
+import { Volume2, Plus, Check, RotateCcw, Shuffle, List, Eraser, Cloud } from 'lucide-react';
 import { usePresence } from '../hooks/usePresence';
 import { InteractiveWordCard } from './InteractiveWordCard';
 
@@ -29,6 +30,10 @@ interface WordCloudCanvasProps {
   selectionDisabled: boolean;
   onToggleSelection: (id: string) => void;
   onClearBoard: () => void;
+  /** Where the board tools render (the stage strip). */
+  toolsSlot?: HTMLElement | null;
+  isGenerating?: boolean;
+  generatingTopic?: string;
 }
 
 interface PhysicsNode {
@@ -69,6 +74,9 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   selectionDisabled,
   onToggleSelection,
   onClearBoard,
+  toolsSlot,
+  isGenerating = false,
+  generatingTopic = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 960, height: 600 });
@@ -456,6 +464,12 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
     <span>Borrar</span>
   </button>;
 
+  // Board tools live in the stage strip, beside the cloud title.
+  const tools = (extra: React.ReactNode) => {
+    const content = <div className="canvas-tools">{clearButton}{extra}</div>;
+    return toolsSlot ? createPortal(content, toolsSlot) : content;
+  };
+
   const pressHint = 'Toca para abrir la ficha. Mantén pulsado para seleccionar. Con teclado: Mayús + Enter.';
 
   // Re-scramble / Reorganize physics impulse
@@ -508,6 +522,18 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   );
 
   // Empty board: a quiet sheet with a single invitation to start again.
+  if (words.length === 0 && isGenerating) {
+    return (
+      <div ref={containerRef} className="empty-board is-generating" style={{ minHeight: dimensions.height }} role="status" aria-live="polite">
+        <div className="empty-board-inner">
+          <p className="eyebrow"><span>Generando</span><span>Campo léxico</span></p>
+          <h3 className="empty-title generating-title"><em>{generatingTopic || 'vocabulario'}</em></h3>
+          <span className="progress-track" aria-hidden="true"><span /></span>
+        </div>
+      </div>
+    );
+  }
+
   if (words.length === 0) {
     return (
       <div ref={containerRef} className="empty-board" style={{ minHeight: dimensions.height }}>
@@ -547,15 +573,14 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
         ref={containerRef}
         className="mosaic"
         data-columns={columns}
-        style={{ height: dimensions.height, '--rows': rows, '--row-h': `${Math.min(64, (dimensions.height - 104) / rows)}px` } as React.CSSProperties}
+        style={{ height: dimensions.height, '--rows': rows, '--row-h': `${Math.min(64, (dimensions.height - 24) / rows)}px` } as React.CSSProperties}
       >
-        <div className="mosaic-bar">
-          <span className="eyebrow"><span>Lista</span><span>Toca o mantén pulsado</span></span>
-          {clearButton}
-          <button onClick={() => setMobileViewStyle('canvas')} className="text-button">
-            Ver nube
+        {tools(
+          <button onClick={() => setMobileViewStyle('canvas')} title="Ver las palabras como nube" aria-label="Ver como nube">
+            <Cloud aria-hidden="true" />
+            <span>Nube</span>
           </button>
-        </div>
+        )}
 
         <ol className="mosaic-list">
           {words.map((w, index) => {
@@ -610,14 +635,13 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`tag-canvas ${isArranging ? 'is-arranging' : ''} ${selectedWord ? 'has-selection' : ''}`}
+      className={`tag-canvas ${isArranging ? 'is-arranging' : ''} ${selectedWord ? 'has-selection' : ''} ${isGenerating ? 'is-generating' : ''}`}
       style={{
         minHeight: Math.max(layoutHeight, dimensions.height),
         cursor: draggingNodeRef.current ? 'grabbing' : 'default',
       }}
     >
-      <div className="canvas-tools">
-        {clearButton}
+      {tools(<>
         {dimensions.width < 640 && (
           <button
             onClick={() => setMobileViewStyle('mosaico')}
@@ -628,11 +652,11 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             <span>Lista</span>
           </button>
         )}
-        <button onClick={handleReorganize} title="Reorganizar las palabras" aria-label="Reorganizar">
+        <button onClick={handleReorganize} className="tool-shuffle" title="Reorganizar las palabras" aria-label="Reorganizar">
           <Shuffle aria-hidden="true" />
           <span>Reorganizar</span>
         </button>
-      </div>
+      </>)}
 
       {nodes.map((node, index) => {
         const isHovered = hoveredWordId === node.id;
@@ -648,6 +672,7 @@ export const WordCloudCanvas: React.FC<WordCloudCanvasProps> = ({
             onMouseLeave={() => setHoveredWordId(null)}
             data-weight={node.word.weight}
             data-dragging={node.isDragging || undefined}
+            data-playing={isPlaying || undefined}
             style={{
               transform: `translate3d(${node.x}px, ${node.y}px, 0)`,
               fontSize: `${node.fontSize}px`,
