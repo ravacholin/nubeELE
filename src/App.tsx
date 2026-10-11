@@ -28,6 +28,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Maximize2,
+  Eraser,
   RotateCcw,
   Search,
   Bookmark,
@@ -79,7 +80,6 @@ export default function App() {
   const [retainedIds, setRetainedIds] = useState(new Set<string>());
   const retainedIdsRef = useRef(retainedIds);
   retainedIdsRef.current = retainedIds;
-  const [isSelecting, setIsSelecting] = useState(false);
   const [cloudFocus, setCloudFocus] = useState<CloudFocus>(initialSnapshot?.focus ?? 'more');
   const [previousWords, setPreviousWords] = useState<WordItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -396,6 +396,7 @@ export default function App() {
 
   // Clear Board (Pizarra limpia para la clase)
   const handleClearBoard = () => {
+    setShowOnlySaved(false);
     if (words.length === 0) return;
     ++cloudRequestId.current;
     setIsLoading(false);
@@ -589,13 +590,13 @@ export default function App() {
         aria-label="Nube de palabras interactiva"
         className={`cloud-stage ${isPresentationMode ? 'presentation-stage' : ''}`}
       >
-        {isSelecting || retainedIds.size > 0 ? (
+        {retainedIds.size > 0 ? (
           <div className="selection-bar" aria-label="Selección de palabras">
-            <span role="status">{retainedIds.size ? `${retainedIds.size} seleccionadas · se conservan al buscar otro tema` : 'Selecciona las palabras que quieres conservar o renovar'}</span>
+            <span role="status">{retainedIds.size === 1 ? '1 seleccionada · se conserva' : `${retainedIds.size} seleccionadas · se conservan`} al buscar otro tema</span>
             <button className="bar-button" onClick={() => handleExpandCloud('more', true)} disabled={!retainedIds.size || isLoading || isExpanding || !isOnline}>
               <RotateCcw aria-hidden="true" /> Regenerar selección
             </button>
-            <button className="bar-button" onClick={() => { setRetainedIds(new Set()); setIsSelecting(false); }} disabled={isLoading || isExpanding}>Deseleccionar</button>
+            <button className="bar-button" onClick={() => setRetainedIds(new Set())} disabled={isLoading || isExpanding}>Deseleccionar</button>
           </div>
         ) : null}
         {errorMessage && (
@@ -646,11 +647,10 @@ export default function App() {
             hasRestorableWords={previousWords.length > 0}
             onQuickTopic={runTopic}
             onToggleFavorite={handleToggleFavorite}
-            isSelecting={isSelecting && !showOnlySaved}
             retainedIds={retainedIds}
             selectionDisabled={isLoading || isExpanding || showOnlySaved}
-            onToggleSelectionMode={() => setIsSelecting(previous => !previous)}
             onToggleSelection={handleToggleSelection}
+            onClearBoard={handleClearBoard}
           />
         </div>
 
@@ -698,6 +698,7 @@ export default function App() {
                   className="bar-button"
                   title="Borrar la pizarra para dejarla en blanco"
                 >
+                  <Eraser aria-hidden="true" />
                   <span>Borrar</span>
                 </button>
               )}
