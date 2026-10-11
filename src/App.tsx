@@ -210,7 +210,16 @@ export default function App() {
       const data = await res.json();
       if (requestId !== cloudRequestId.current) return;
       if (data.success && Array.isArray(data.newWords)) {
-        setWords((prev) => [...prev, ...data.newWords]);
+        // Expansions can repeat words already on the board; keep each lemma once.
+        const seen = new Set(words.map(w => (w.lemma || w.word).toLowerCase()));
+        const fresh = (data.newWords as WordItem[]).filter(w => {
+          const key = (w.lemma || w.word).toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        if (!fresh.length) setErrorMessage('No hay palabras nuevas para este tema. Con una API key de Gemini podés seguir ampliando.');
+        setWords((prev) => [...prev, ...fresh]);
       } else {
         throw new Error(data.error || 'No se pudieron añadir palabras');
       }
@@ -222,7 +231,10 @@ export default function App() {
         { id: `fb_${Date.now()}_2`, word: 'condimentar', lemma: 'condimentar', article: null, category: 'verbo', level: 'B1', weight: 4, meaning: 'Añadir especias a la comida para realzar su sabor.', example: 'Condimenta las verduras con romero y pimienta negra.' },
         { id: `fb_${Date.now()}_3`, word: 'crujiente', lemma: 'crujiente', article: null, category: 'adjetivo', level: 'A2', weight: 4, meaning: 'Que cruje al masticarlo; textura fresca y apetecible.', example: 'La zanahoria cruda es fresca y crujiente.' },
       ];
-      setWords((prev) => [...prev, ...fallbackAdditions]);
+      setWords((prev) => {
+        const seen = new Set(prev.map(w => (w.lemma || w.word).toLowerCase()));
+        return [...prev, ...fallbackAdditions.filter(w => !seen.has(w.lemma.toLowerCase()))];
+      });
     } finally {
       setIsExpanding(false);
     }
@@ -349,6 +361,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isPresentationMode, selectedWord]);
 
+  // Notices are transient: they leave on their own.
+  useEffect(() => {
+    if (!errorMessage) return;
+    const timer = setTimeout(() => setErrorMessage(null), 6000);
+    return () => clearTimeout(timer);
+  }, [errorMessage]);
+
+  // "/" jumps to the topic field from anywhere, like a command palette.
+  const topicInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable=true], [role=dialog]')) return;
+      event.preventDefault();
+      topicInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Restore cleared board
   const handleRestoreBoard = () => {
     if (previousWords.length > 0) {
@@ -384,6 +416,7 @@ export default function App() {
           <div className="command-field">
             <Search className="command-icon" aria-hidden="true" />
             <input
+              ref={topicInputRef}
               type="text"
               value={topicInput}
               onChange={(e) => setTopicInput(e.target.value)}
@@ -394,10 +427,12 @@ export default function App() {
               aria-label="Tema de la nube"
               aria-expanded={isSuggestOpen}
               aria-controls="topic-suggestions"
+              aria-keyshortcuts="/"
               className="topic-input"
               enterKeyHint="go"
               autoComplete="off"
             />
+            {!topicInput && !isSuggestOpen && <kbd className="command-kbd" aria-hidden="true">/</kbd>}
             {isSuggestOpen && (
               <ul id="topic-suggestions" className="suggest-panel" role="listbox" aria-label="Temas sugeridos">
                 {SUGGESTED_TEMPLATES.map((tmpl, index) => (

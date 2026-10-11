@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { packCloudBoxes } from '../src/utils/cloudLayout.js';
+import { flowCloudBoxes, packCloudBoxes } from '../src/utils/cloudLayout.js';
 
 test('every tag stays inside the cloud without overlap on phone, tablet and desktop', () => {
   for (const width of [286, 326, 356, 718, 1230]) {
@@ -15,6 +15,31 @@ test('every tag stays inside the cloud without overlap on phone, tablet and desk
         positions.forEach((a, i) => {
           assert.ok(a.x >= 0 && a.x + boxes[i].width <= width);
           assert.ok(a.y >= 52 && a.y + boxes[i].height <= height - 40);
+          positions.slice(i + 1).forEach((b, offset) => {
+            const j = i + offset + 1;
+            const overlaps = a.x < b.x + boxes[j].width && a.x + boxes[i].width > b.x &&
+              a.y < b.y + boxes[j].height && a.y + boxes[i].height > b.y;
+            assert.equal(overlaps, false, `Tags ${i}/${j} overlap at ${width}px`);
+          });
+        });
+      }
+    }
+  }
+});
+
+test('typographic flow keeps every tag inside the stage without overlap', () => {
+  for (const width of [286, 343, 600]) {
+    for (const count of [8, 31, 45]) {
+      const boxes = Array.from({ length: count }, (_, i) => ({
+        width: Math.min(width - 16, [88, 121, 64, 97, 140, 75][i % 6]),
+        height: [26, 30, 34, 40, 48][i % 5],
+      }));
+      for (const seed of [0, 1.7, 3.4]) {
+        const { positions, height } = flowCloudBoxes(boxes, width, 420, seed);
+        assert.equal(positions.length, count);
+        positions.forEach((a, i) => {
+          assert.ok(a.x >= 0 && a.x + boxes[i].width <= width);
+          assert.ok(a.y >= 52 && a.y + boxes[i].height <= height - 12);
           positions.slice(i + 1).forEach((b, offset) => {
             const j = i + offset + 1;
             const overlaps = a.x < b.x + boxes[j].width && a.x + boxes[i].width > b.x &&
